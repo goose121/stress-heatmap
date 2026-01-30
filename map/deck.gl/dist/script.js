@@ -13,7 +13,7 @@ const layer = new HeatmapLayer({
   // colorDomain: null,
   // colorRange: [[255, 255, 178], [254, 217, 118], [254, 178, 76], [253, 141, 60], [240, 59, 32], [189, 0, 38]],
   // debounceTimeout: 500,
-  // getPosition: d => d.COORDINATES,
+  getPosition: d => d.COORDINATES,
   getWeight: d => d.SPACES,
   // intensity: 1,
   radiusPixels: 25,
