@@ -36,7 +36,7 @@ def combine_datasets(goemotion_file, synthetic_file, output_file):
 
 if __name__ == "__main__":
     combine_datasets(
-        goemotion_file='overwhelm_data.csv',
-        synthetic_file='synthetic_student_examples.csv',
-        output_file='training_data.csv'
+        goemotion_file='ML_Processing/data/processed/overwhelm_data.csv',
+        synthetic_file='ML_Processing/data/processed/synthetic_student_examples.csv',
+        output_file='ML_Processing/data/processed/training_data.csv'
     )

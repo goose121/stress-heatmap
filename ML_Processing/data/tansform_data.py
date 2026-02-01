@@ -82,7 +82,7 @@ def transform_data_to_overwhelm_level(input_file, output_file, sample_size=1000)
 if __name__ == "__main__":
     # Transform the data
     transform_data_to_overwhelm_level(
-        input_file='goemotions_1.csv',
-        output_file='overwhelm_data.csv',
+        input_file='ML_Processing/data/raw/goemotions_1.csv',
+        output_file='ML_Processing/data/processed/overwhelm_data.csv',
         sample_size=1000
     )
