@@ -56,7 +56,7 @@ class TextVectorizer:
             scipy.sparse matrix: TF-IDF features
         """
         if not self.is_fitted:
-            raise ValueError("Vectorizer must be fitted before transforming. Call fit() first.")
+            raise ValueError("Vectorizer must be fitted before transforming.")
         
         X = self.vectorizer.transform(texts)
         return X
@@ -105,7 +105,7 @@ class TextVectorizer:
         with open(filepath, 'wb') as f:
             pickle.dump(self.vectorizer, f)
         
-        print(f"✓ Vectorizer saved to {filepath}")
+        print(f" Vectorizer saved to {filepath}")
     
     @classmethod
     def load(cls, filepath):
@@ -148,8 +148,7 @@ def load_training_data(filepath):
 
 def create_vectorizer(data_path, save_path, max_features=2000, ngram_range=(1, 2), min_df=2):
     """
-    Complete pipeline: Load data → Fit vectorizer → Save to file
-    
+    Loads data, encode, and save 
     Args:
         data_path (str): Path to training_data.csv
         save_path (str): Path to save vectorizer.pkl
