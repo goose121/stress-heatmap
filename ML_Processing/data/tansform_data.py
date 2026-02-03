@@ -4,41 +4,34 @@ import numpy as np
 # Emotional tone mapping to level of overwhelm 
 EMOTION_MAPPING = {
     # Low Stress levels, confidence.
-    1: ['admiration', 'amusement', 'approval', 'caring', 'gratitude', 'joy', 'love', 'relief'],
+    1: ['admiration', 'amusement', 'approval', 'caring', 'gratitude', 'joy', 'love'],
     # Slightly higher stress, but still fairly confident
-    2: ['excitement', 'desire', 'pride', 'optimism', 'remorse', 'embarrassment'],
+    2: ['excitement', 'desire', 'pride', 'optimism', 'relief', 'curiosity'],
     # Neutral, not terribly stressed but still decent workload
-    3: ['neutral', 'curiosity', 'realization', 'surprise'],
+    3: ['neutral', 'realization', 'surprise'],
     # Fairly overwhelmed
     4: ['confusion', 'disappointment', 'annoyance', 'sadness', 'disapproval', 'nervousness'],
     # High Stress and Overwhelm
-    5: ['anger', 'disgust', 'fear', 'grief']
+    5: ['anger', 'disgust', 'fear', 'grief','remorse', 'embarrassment']
 }
 
 
 def get_overwhelm_level(row):
     """
-    Determine overwhelm level based on emotions present. 
-    Uses weighted average to handle mixed emotions
+    Determine overwhelm level based on the highest intensity emotion present.
     """
-    emotion_levels = []
+    active_levels = []
     
-    # Check for which emotions are present
     for level, emotions in EMOTION_MAPPING.items():
         for emotion in emotions:
             if row[emotion] == 1:
-                emotion_levels.append(level)
+                active_levels.append(level)
     
-    # If no clear emotion, mark as neutral
-    if not emotion_levels:
-        return 3
+    if not active_levels:
+        return 3  # Neutral default
     
-    # If only one emotion, return its level
-    if len(emotion_levels) == 1:
-        return emotion_levels[0]
-    
-    avg_level = np.mean(emotion_levels)
-    return round(avg_level)
+    # Return the maximum level detected (Priority on higher stress)
+    return max(active_levels)
 
 def transform_data_to_overwhelm_level(input_file, output_file, sample_size=1000):
     """
@@ -82,7 +75,7 @@ def transform_data_to_overwhelm_level(input_file, output_file, sample_size=1000)
 if __name__ == "__main__":
     # Transform the data
     transform_data_to_overwhelm_level(
-        input_file='goemotions_1.csv',
-        output_file='overwhelm_data.csv',
-        sample_size=1000
+        input_file='ML_Processing/data/raw/goemotions_1.csv',
+        output_file='ML_Processing/data/processed/overwhelm_data.csv',
+        sample_size=10
     )

@@ -25,8 +25,8 @@ def combine_datasets(goemotion_file, synthetic_file, output_file):
     print(f"Level 1: {(combined_df['label'] == 1).sum()} examples ({(combined_df['label'] == 1).sum()/len(combined_df)*100:.1f}%)")
     print(f"Level 2: {(combined_df['label'] == 2).sum()} examples ({(combined_df['label'] == 2).sum()/len(combined_df)*100:.1f}%)")
     print(f"Level 3: {(combined_df['label'] == 3).sum()} examples ({(combined_df['label'] == 3).sum()/len(combined_df)*100:.1f}%)")
-    print(f"Level 4 (moderate):   {(combined_df['label'] == 4).sum()} examples ({(combined_df['label'] == 4).sum()/len(combined_df)*100:.1f}%)")
-    print(f"Level 5 (high stress):{(combined_df['label'] == 5).sum()} examples ({(combined_df['label'] == 5).sum()/len(combined_df)*100:.1f}%)")
+    print(f"Level 4: {(combined_df['label'] == 4).sum()} examples ({(combined_df['label'] == 4).sum()/len(combined_df)*100:.1f}%)")
+    print(f"Level 5: {(combined_df['label'] == 5).sum()} examples ({(combined_df['label'] == 5).sum()/len(combined_df)*100:.1f}%)")
     
     # Save
     combined_df.to_csv(output_file, index=False)
@@ -36,7 +36,7 @@ def combine_datasets(goemotion_file, synthetic_file, output_file):
 
 if __name__ == "__main__":
     combine_datasets(
-        goemotion_file='overwhelm_data.csv',
-        synthetic_file='synthetic_student_examples.csv',
-        output_file='training_data.csv'
+        goemotion_file='ML_Processing/data/processed/overwhelm_data.csv',
+        synthetic_file='ML_Processing/data/processed/synthetic_student_examples.csv',
+        output_file='ML_Processing/data/processed/training_data.csv'
     )
