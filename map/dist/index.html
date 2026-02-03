@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MRU Student Stress Heatmap</title>
+    
+    <!-- MapLibre GL JS - Open Source map rendering library -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    
+    <!-- deck.gl - Open Source WebGL visualization framework -->
+    <script src="https://unpkg.com/deck.gl@9.0.16/dist.min.js"></script>
+    
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Main map container -->
+    <div id="map-container"></div>
+    
+    <!-- Stats display showing data point count -->
+    <div class="stats">
+        Data Points: <span id="data-count">0</span>
+    </div>
+
+    <!-- Color legend showing stress levels -->
+    <div class="legend">
+        <div class="legend-title">Stress Level</div>
+        <div class="legend-gradient"></div>
+        <div class="legend-labels">
+            <span>1 (Low)</span>
+            <span>2</span>
+            <span>3</span>
+            <span>4</span>
+            <span>5 (High)</span>
+        </div>
+    </div>
+
+    <!-- Main application script -->
+    <script src="script.js"></script>
+</body>
+</html>
