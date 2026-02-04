@@ -5,8 +5,8 @@ import os
 from text_encoding import TextVectorizer
 
 def test():
-    VECTORIZER_PATH = 'ML_processing/models/vectorizer.pkl'
-    MODEL_PATH = 'ML_processing/models/classifier.pkl'
+    VECTORIZER_PATH = 'ML_processing/models/vectorizer_v1.pkl'
+    MODEL_PATH = 'ML_processing/models/classifier_v1.pkl'
     
     # Load the text vectorizer
     if not os.path.exists(VECTORIZER_PATH):
@@ -15,6 +15,9 @@ def test():
     vectorizer = TextVectorizer.load(VECTORIZER_PATH)
     
     # Load the model classifier
+    if not os.path.exists(MODEL_PATH):
+        print(f"Error: {MODEL_PATH} not found.")
+        return
     with open(MODEL_PATH, 'rb') as f:
         model = pickle.load(f)
     

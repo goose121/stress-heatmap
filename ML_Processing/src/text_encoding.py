@@ -206,7 +206,7 @@ def create_vectorizer(data_path, save_path, max_features=2000, ngram_range=(1, 2
 if __name__ == "__main__":
     create_vectorizer(
         data_path='ML_Processing/data/processed/training_data.csv',
-        save_path='ML_Processing/models/vectorizer.pkl',
+        save_path='ML_Processing/models/vectorizer_v1.pkl',
         max_features=2000,
         ngram_range=(1, 2),
         min_df=2
