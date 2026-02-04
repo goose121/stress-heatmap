@@ -27,7 +27,7 @@ The student overwhelm classifier was trained on mostly student based examples. E
 ```
 
 ### 2. Synthetically Generated Student Examples
-- **Count**: 2,100 examples
+- **Count**: 2,087 examples
 - **Distribution**: Balanced across all 5 overwhelm levels
 - **Source**: AI-generated using language model prompting + manual entry
 - **Generation Method**: See "Synthetic Data Generation" section below
@@ -104,9 +104,5 @@ Demszky, D., Movshovitz-Attias, D., Inyang, J., Sass, I., Tatomir, B., Basave, A
 ---
 
 ## Document Version
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2026-02-04 | Initial documentation |
 
 **Last Updated**: February 4, 2026
