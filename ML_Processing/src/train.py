@@ -39,8 +39,8 @@ def evaluate_classifier(model, X_test, y_test):
 def main():
     # Configuration
     DATA_PATH = 'ML_Processing/data/processed/training_data.csv'
-    VECTORIZER_PATH = 'ML_Processing/models/vectorizer.pkl'
-    MODEL_PATH = 'ML_Processing/models/classifier.pkl'
+    VECTORIZER_PATH = 'ML_Processing/models/vectorizer_v1.pkl'
+    MODEL_PATH = 'ML_Processing/models/classifier_v1.pkl'
     # Load Data
     texts, labels = load_training_data(DATA_PATH)
     
