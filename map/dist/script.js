@@ -33,6 +33,22 @@ let stressData = [];
 let deckInstance = null;
 
 /**
+ * initSidebarToggle - Wires up collapse/expand behavior for sidebar panel
+ */
+function initSidebarToggle() {
+    const sidebar = document.getElementById('sidebar');
+    const toggleButton = document.getElementById('sidebar-toggle');
+    if (!sidebar || !toggleButton) return;
+
+    toggleButton.addEventListener('click', () => {
+        const isCollapsed = sidebar.classList.toggle('collapsed');
+        toggleButton.textContent = isCollapsed ? '>' : '<';
+        toggleButton.setAttribute('aria-expanded', String(!isCollapsed));
+        toggleButton.setAttribute('aria-label', isCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+    });
+}
+
+/**
  * constrainViewState - Restricts map view to MRU campus bounds
  */
 function constrainViewState(viewState) {
@@ -138,6 +154,7 @@ function startPolling() {
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Starting MRU Stress Heatmap');
+    initSidebarToggle();
     initMap();
     startPolling();
 });

@@ -18,24 +18,31 @@
 <body>
     <!-- Main map container -->
     <div id="map-container"></div>
-    
-    <!-- Stats display showing data point count -->
-    <div class="stats">
-        Data Points: <span id="data-count">0</span>
-    </div>
 
-    <!-- Color legend showing stress levels -->
-    <div class="legend">
-        <div class="legend-title">Stress Level</div>
-        <div class="legend-gradient"></div>
-        <div class="legend-labels">
-            <span>1 (Low)</span>
-            <span>2</span>
-            <span>3</span>
-            <span>4</span>
-            <span>5 (High)</span>
+    <!-- Collapsible right sidebar -->
+    <aside id="sidebar" class="sidebar" aria-label="Map details panel">
+        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true"><</button>
+
+        <div class="sidebar-content">
+            <!-- Stats display showing data point count -->
+            <div class="stats">
+                Data Points: <span id="data-count">0</span>
+            </div>
+
+            <!-- Color legend showing stress levels -->
+            <div class="legend">
+                <div class="legend-title">Stress Level</div>
+                <div class="legend-gradient"></div>
+                <div class="legend-labels">
+                    <span>1 (Low)</span>
+                    <span>2</span>
+                    <span>3</span>
+                    <span>4</span>
+                    <span>5 (High)</span>
+                </div>
+            </div>
         </div>
-    </div>
+    </aside>
 
     <!-- Main application script -->
     <script src="script.js"></script>
