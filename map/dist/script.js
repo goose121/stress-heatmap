@@ -31,6 +31,10 @@ const CONFIG = {
 
 let stressData = [];
 let deckInstance = null;
+const stressRange = {
+    min: 1,
+    max: 5
+};
 
 /**
  * initSidebarToggle - Wires up collapse/expand behavior for sidebar panel
@@ -65,9 +69,13 @@ function constrainViewState(viewState) {
  * createHeatmapLayer - Creates heatmap layer using Gaussian kernel density estimation
  */
 function createHeatmapLayer() {
+    const filteredData = stressData.filter(
+        d => d.stress_level >= stressRange.min && d.stress_level <= stressRange.max
+    );
+
     return new HeatmapLayer({
         id: 'stress-heatmap',
-        data: stressData,
+        data: filteredData,
         
         getPosition: d => [d.longitude, d.latitude],
         getWeight: d => d.stress_level,
@@ -118,9 +126,79 @@ function initMap() {
  */
 function updateHeatmap() {
     if (!deckInstance) return;
-    
-    console.log('Updating heatmap with', stressData.length, 'data points');
+
+    const filteredCount = stressData.filter(
+        d => d.stress_level >= stressRange.min && d.stress_level <= stressRange.max
+    ).length;
+
+    console.log('Updating heatmap with', filteredCount, 'filtered data points');
     deckInstance.setProps({ layers: [createHeatmapLayer()] });
+}
+
+/**
+ * updateRangeSelectionBar - Greys out out-of-range sections while keeping gradient static
+ */
+function updateRangeSelectionBar() {
+    const leftMask = document.getElementById('range-mask-left');
+    const rightMask = document.getElementById('range-mask-right');
+    if (!leftMask || !rightMask) return;
+
+    const minPercent = ((stressRange.min - 1) / 4) * 100;
+    const maxPercent = ((stressRange.max - 1) / 4) * 100;
+
+    leftMask.style.left = '0%';
+    leftMask.style.right = `${100 - minPercent}%`;
+
+    rightMask.style.left = `${maxPercent}%`;
+    rightMask.style.right = '0%';
+}
+
+/**
+ * updateVisibleCount - Shows filtered point count with total
+ */
+function updateVisibleCount() {
+    const filteredCount = stressData.filter(
+        d => d.stress_level >= stressRange.min && d.stress_level <= stressRange.max
+    ).length;
+    document.getElementById('data-count').textContent = `${filteredCount} / ${stressData.length}`;
+}
+
+/**
+ * initStressRangeControls - Wires up min/max stress sliders
+ */
+function initStressRangeControls() {
+    const minSlider = document.getElementById('stress-min');
+    const maxSlider = document.getElementById('stress-max');
+
+    if (!minSlider || !maxSlider) return;
+
+    minSlider.addEventListener('input', () => {
+        stressRange.min = Number(minSlider.value);
+
+        if (stressRange.min > stressRange.max) {
+            stressRange.max = stressRange.min;
+            maxSlider.value = String(stressRange.max);
+        }
+
+        updateRangeSelectionBar();
+        updateVisibleCount();
+        updateHeatmap();
+    });
+
+    maxSlider.addEventListener('input', () => {
+        stressRange.max = Number(maxSlider.value);
+
+        if (stressRange.max < stressRange.min) {
+            stressRange.min = stressRange.max;
+            minSlider.value = String(stressRange.min);
+        }
+
+        updateRangeSelectionBar();
+        updateVisibleCount();
+        updateHeatmap();
+    });
+
+    updateRangeSelectionBar();
 }
 
 /**
@@ -136,7 +214,7 @@ async function fetchStressData() {
         
         stressData = data;
         updateHeatmap();
-        document.getElementById('data-count').textContent = stressData.length;
+        updateVisibleCount();
         
     } catch (error) {
         console.error('Error fetching stress data:', error);
@@ -155,6 +233,7 @@ function startPolling() {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Starting MRU Stress Heatmap');
     initSidebarToggle();
+    initStressRangeControls();
     initMap();
     startPolling();
 });

@@ -4,8 +4,17 @@
  */
 
 const Database = require('better-sqlite3');
+const fs = require('fs');
+const path = require('path');
 
-const db = new Database('./data.sqlite');
+const dbFilePath = path.join(__dirname, 'data.sqlite');
+
+if (fs.existsSync(dbFilePath)) {
+    fs.unlinkSync(dbFilePath);
+    console.log('Removed existing data.sqlite');
+}
+
+const db = new Database(dbFilePath);
 
 console.log('Setting up data.sqlite\n');
 
@@ -13,15 +22,29 @@ console.log('Setting up data.sqlite\n');
  * Create stress_reports table
  */
 db.exec(`
-    CREATE TABLE IF NOT EXISTS stress_reports (
+    CREATE TABLE stress_reports (
         ip_address TEXT PRIMARY KEY,
         stress_level INTEGER NOT NULL CHECK(stress_level BETWEEN 1 AND 5),
         longitude REAL NOT NULL,
-        latitude REAL NOT NULL
+        latitude REAL NOT NULL,
+        datetime TEXT NOT NULL DEFAULT (datetime('now'))
     )
 `);
 
 console.log('Table created/verified');
+
+/**
+ * randomRecentUtcDatetime - Returns a UTC datetime string within the last N days.
+ */
+function randomRecentUtcDatetime(maxDaysBack = 14) {
+    const nowMs = Date.now();
+    const maxBackMs = maxDaysBack * 24 * 60 * 60 * 1000;
+    const randomBackMs = Math.floor(Math.random() * maxBackMs);
+    const timestamp = new Date(nowMs - randomBackMs);
+
+    // Match SQLite datetime('now') format: YYYY-MM-DD HH:MM:SS (UTC)
+    return timestamp.toISOString().slice(0, 19).replace('T', ' ');
+}
 
 /**
  * generateHotspots - Creates dense clusters of stress reports at specific campus locations
@@ -51,7 +74,9 @@ function generateHotspots() {
             const longitude = hotspot.lng + (Math.random() - 0.5) * 0.0015;
             const latitude = hotspot.lat + (Math.random() - 0.5) * 0.001;
             
-            hotspots.push([ip, stressLevel, longitude, latitude]);
+            const datetime = randomRecentUtcDatetime();
+
+            hotspots.push([ip, stressLevel, longitude, latitude, datetime]);
             ipCounter++;
         }
     });
@@ -79,7 +104,9 @@ function generateRandomDataPoints(count) {
         const longitude = minLng + Math.random() * (maxLng - minLng);
         const latitude = minLat + Math.random() * (maxLat - minLat);
         
-        data.push([ip, stressLevel, longitude, latitude]);
+        const datetime = randomRecentUtcDatetime();
+
+        data.push([ip, stressLevel, longitude, latitude, datetime]);
     }
     
     return data;
@@ -90,8 +117,8 @@ const randomData = generateRandomDataPoints(30);
 const testData = [...hotspotData, ...randomData];
 
 const stmt = db.prepare(`
-    INSERT OR REPLACE INTO stress_reports (ip_address, stress_level, longitude, latitude)
-    VALUES (?, ?, ?, ?)
+    INSERT OR REPLACE INTO stress_reports (ip_address, stress_level, longitude, latitude, datetime)
+    VALUES (?, ?, ?, ?, ?)
 `);
 
 testData.forEach(row => {

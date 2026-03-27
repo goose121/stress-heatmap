@@ -16,6 +16,50 @@ const db = new Database(dbPath);
 console.log('Connected to data.sqlite');
 
 /**
+ * Ensure schema includes report timestamp for existing databases.
+ */
+function ensureSchema() {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS stress_reports (
+            ip_address TEXT PRIMARY KEY,
+            stress_level INTEGER NOT NULL CHECK(stress_level BETWEEN 1 AND 5),
+            longitude REAL NOT NULL,
+            latitude REAL NOT NULL,
+            datetime TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    `);
+
+    const columns = db.prepare(`PRAGMA table_info(stress_reports)`).all();
+    const hasDatetime = columns.some((column) => column.name === 'datetime');
+    const hasReportedAt = columns.some((column) => column.name === 'reported_at');
+
+    if (!hasDatetime) {
+        db.exec(`
+            ALTER TABLE stress_reports
+            ADD COLUMN datetime TEXT
+        `);
+
+        if (hasReportedAt) {
+            db.exec(`
+                UPDATE stress_reports
+                SET datetime = reported_at
+                WHERE datetime IS NULL
+            `);
+        }
+
+        db.exec(`
+            UPDATE stress_reports
+            SET datetime = datetime('now')
+            WHERE datetime IS NULL
+        `);
+
+        console.log('Added datetime column to stress_reports');
+    }
+}
+
+ensureSchema();
+
+/**
  * CORS middleware - Allow cross-origin requests
  */
 app.use((req, res, next) => {
@@ -34,7 +78,7 @@ app.use(express.json());
 app.get('/api/stress-data', (req, res) => {
     try {
         const query = `
-            SELECT ip_address, stress_level, longitude, latitude
+            SELECT ip_address, stress_level, longitude, latitude, datetime
             FROM stress_reports
         `;
         
@@ -64,8 +108,8 @@ app.post('/api/stress-data', (req, res) => {
     
     try {
         const query = `
-            REPLACE INTO stress_reports (ip_address, stress_level, longitude, latitude)
-            VALUES (?, ?, ?, ?)
+            REPLACE INTO stress_reports (ip_address, stress_level, longitude, latitude, datetime)
+            VALUES (?, ?, ?, ?, datetime('now'))
         `;
         
         db.prepare(query).run(ip_address, stress_level, longitude, latitude);

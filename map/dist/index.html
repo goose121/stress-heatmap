@@ -29,16 +29,19 @@
                 Data Points: <span id="data-count">0</span>
             </div>
 
-            <!-- Color legend showing stress levels -->
+            <!-- Stress range controls -->
             <div class="legend">
-                <div class="legend-title">Stress Level</div>
-                <div class="legend-gradient"></div>
-                <div class="legend-labels">
+                <div class="legend-title">Stress Range</div>
+                <div class="dual-slider-labels">
                     <span>1 (Low)</span>
-                    <span>2</span>
-                    <span>3</span>
-                    <span>4</span>
                     <span>5 (High)</span>
+                </div>
+                <div class="range-slider" aria-label="Stress range selector">
+                    <div class="range-track"></div>
+                    <div id="range-mask-left" class="range-mask"></div>
+                    <div id="range-mask-right" class="range-mask"></div>
+                    <input id="stress-min" class="range-input" type="range" min="1" max="5" step="1" value="1" aria-label="Minimum stress">
+                    <input id="stress-max" class="range-input" type="range" min="1" max="5" step="1" value="5" aria-label="Maximum stress">
                 </div>
             </div>
         </div>

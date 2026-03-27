@@ -104,24 +104,87 @@ body {
     color: #ccc;
 }
 
-/* Gradient bar showing stress level color mapping - Blue to Red */
-.legend-gradient {
-    height: 12px;
-    background: linear-gradient(to right, 
-        rgb(0, 0, 255),       
-        rgb(0, 255, 0),       
-        rgb(255, 255, 0),     
-        rgb(255, 165, 0),     
-        rgb(255, 0, 0)       
-    );
-    border-radius: 4px;
-}
-
-/* Labels below gradient (1, 2, 3, 4, 5) */
-.legend-labels {
+.dual-slider-labels {
     display: flex;
     justify-content: space-between;
     font-size: 0.75rem;
-    margin-top: 5px;
-    color: #aaa;
+    color: #bdbdbd;
+    margin-bottom: 8px;
+}
+
+.range-slider {
+    position: relative;
+    height: 26px;
+}
+
+.range-track,
+.range-mask {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 10px;
+    border-radius: 999px;
+}
+
+.range-track {
+    left: 0;
+    right: 0;
+    background: linear-gradient(to right,
+        rgb(0, 0, 255),
+        rgb(0, 255, 0),
+        rgb(255, 255, 0),
+        rgb(255, 165, 0),
+        rgb(255, 0, 0)
+    );
+}
+
+.range-mask {
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.range-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 26px;
+    background: none;
+    appearance: none;
+    -webkit-appearance: none;
+    pointer-events: none;
+}
+
+.range-input::-webkit-slider-runnable-track {
+    height: 10px;
+    background: transparent;
+}
+
+.range-input::-moz-range-track {
+    height: 10px;
+    background: transparent;
+}
+
+.range-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    pointer-events: auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: #1d1d1d;
+    margin-top: -4px;
+    cursor: pointer;
+}
+
+.range-input::-moz-range-thumb {
+    pointer-events: auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: #1d1d1d;
+    cursor: pointer;
 }
