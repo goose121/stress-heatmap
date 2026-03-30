@@ -1,46 +1,36 @@
-import pickle
 import os
+import numpy as np
+from text_encoding import load_onnx_session, predict_onnx
 
-# Import text encoding
-from text_encoding import TextVectorizer
 
 def test():
-    VECTORIZER_PATH = 'ML_processing/models/vectorizer_v1.pkl'
-    MODEL_PATH = 'ML_processing/models/classifier_v1.pkl'
-    
-    # Load the text vectorizer
-    if not os.path.exists(VECTORIZER_PATH):
-        print(f"Error: {VECTORIZER_PATH} not found.")
+    PIPELINE_PATH = 'models/Model_v2.onnx'
+
+    if not os.path.exists(PIPELINE_PATH):
+        print(f"Error: {PIPELINE_PATH} not found. Run train.py first.")
         return
-    vectorizer = TextVectorizer.load(VECTORIZER_PATH)
-    
-    # Load the model classifier
-    if not os.path.exists(MODEL_PATH):
-        print(f"Error: {MODEL_PATH} not found.")
-        return
-    with open(MODEL_PATH, 'rb') as f:
-        model = pickle.load(f)
-    
-    # Test Cases representing all 5 levels
+
+    # Load the single combined ONNX model
+    session = load_onnx_session(PIPELINE_PATH)
+
+    # Test cases representing all 5 levels
     test_cases = [
         "I'm actually feeling really productive today and finished my assignment early.",      # Level 1
         "I have a big presentation tomorrow, I'm a bit nervous but excited to show my work.", # Level 2
         "Just sitting in the library doing some light reading for next week's seminar.",       # Level 3
         "I'm starting to fall behind on my lab reports and the deadlines are piling up.",      # Level 4
-        "I haven't slept in two days, I'm failing three classes, and I just want to quit."     # Level 5
+        "I haven't slept in two days, I'm failing three classes, and I just want to quit."    # Level 5
     ]
-    
-    # Process and Predict
-    X = vectorizer.transform(test_cases)
-    hard_preds = model.predict(X)
-    
-    # Header for the output table
+
+    # Predict — raw strings go straight to the model, no separate vectorizer step
+    predictions = predict_onnx(session, test_cases)
+
     print(f"{'Test Sentence':<85} | {'Predicted Level'}")
-    
-    for i, text in enumerate(test_cases):
-        # If longer than 80 chars, cut off early.
+    print("-" * 103)
+    for text, pred in zip(test_cases, predictions):
         display_text = (text[:80] + '..') if len(text) > 80 else text
-        print(f"{display_text:<85} | {hard_preds[i]}")
+        print(f"{display_text:<85} | {pred}")
+
 
 if __name__ == "__main__":
     test()
