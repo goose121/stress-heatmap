@@ -35,6 +35,108 @@ const stressRange = {
     min: 1,
     max: 5
 };
+const dateRange = {
+    start: null,
+    end: null
+};
+
+/**
+ * parseRecordTimestamp - Parses API datetime values into epoch milliseconds
+ */
+function parseRecordTimestamp(datetimeValue) {
+    if (!datetimeValue) return null;
+
+    const raw = String(datetimeValue).trim();
+    const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
+    const parsed = Date.parse(normalized);
+
+    return Number.isNaN(parsed) ? null : parsed;
+}
+
+/**
+ * toDateInputValue - Converts a timestamp to YYYY-MM-DD for date inputs
+ */
+function toDateInputValue(timestamp) {
+    const date = new Date(timestamp);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+/**
+ * parseDateStart - Parses YYYY-MM-DD as local day start
+ */
+function parseDateStart(value) {
+    if (!value) return null;
+    const parsed = Date.parse(`${value}T00:00:00`);
+    return Number.isNaN(parsed) ? null : parsed;
+}
+
+/**
+ * parseDateEnd - Parses YYYY-MM-DD as local day end
+ */
+function parseDateEnd(value) {
+    if (!value) return null;
+    const parsed = Date.parse(`${value}T23:59:59.999`);
+    return Number.isNaN(parsed) ? null : parsed;
+}
+
+/**
+ * matchesFilters - Returns true when a record passes stress and date filters
+ */
+function matchesFilters(record) {
+    const inStressRange = record.stress_level >= stressRange.min && record.stress_level <= stressRange.max;
+    if (!inStressRange) return false;
+
+    if (dateRange.start === null && dateRange.end === null) return true;
+    if (record.timestamp === null) return false;
+
+    if (dateRange.start !== null && record.timestamp < dateRange.start) return false;
+    if (dateRange.end !== null && record.timestamp > dateRange.end) return false;
+
+    return true;
+}
+
+/**
+ * getFilteredData - Returns records matching all active filters
+ */
+function getFilteredData() {
+    return stressData.filter(matchesFilters);
+}
+
+/**
+ * aggregateOverlappingPoints - Groups points that share coordinates and averages stress level
+ */
+function aggregateOverlappingPoints(records) {
+    const groupedByPosition = new Map();
+
+    records.forEach((record) => {
+        const longitude = Number(record.longitude);
+        const latitude = Number(record.latitude);
+        const key = `${longitude.toFixed(6)},${latitude.toFixed(6)}`;
+        const existing = groupedByPosition.get(key);
+
+        if (existing) {
+            existing.totalStress += Number(record.stress_level);
+            existing.count += 1;
+            return;
+        }
+
+        groupedByPosition.set(key, {
+            longitude,
+            latitude,
+            totalStress: Number(record.stress_level),
+            count: 1
+        });
+    });
+
+    return Array.from(groupedByPosition.values()).map((group) => ({
+        longitude: group.longitude,
+        latitude: group.latitude,
+        stress_level: group.totalStress / group.count
+    }));
+}
 
 /**
  * initSidebarToggle - Wires up collapse/expand behavior for sidebar panel
@@ -69,13 +171,12 @@ function constrainViewState(viewState) {
  * createHeatmapLayer - Creates heatmap layer using Gaussian kernel density estimation
  */
 function createHeatmapLayer() {
-    const filteredData = stressData.filter(
-        d => d.stress_level >= stressRange.min && d.stress_level <= stressRange.max
-    );
+    const filteredData = getFilteredData();
+    const averagedData = aggregateOverlappingPoints(filteredData);
 
     return new HeatmapLayer({
         id: 'stress-heatmap',
-        data: filteredData,
+        data: averagedData,
         
         getPosition: d => [d.longitude, d.latitude],
         getWeight: d => d.stress_level,
@@ -94,8 +195,7 @@ function createHeatmapLayer() {
         radiusPixels: CONFIG.HEATMAP_RADIUS_PIXELS,
         threshold: CONFIG.HEATMAP_THRESHOLD,
         opacity: CONFIG.HEATMAP_OPACITY,
-        colorDomain: [1, 5],
-        pickable: false
+        colorDomain: [1, 5]
     });
 }
 
@@ -127,9 +227,7 @@ function initMap() {
 function updateHeatmap() {
     if (!deckInstance) return;
 
-    const filteredCount = stressData.filter(
-        d => d.stress_level >= stressRange.min && d.stress_level <= stressRange.max
-    ).length;
+    const filteredCount = getFilteredData().length;
 
     console.log('Updating heatmap with', filteredCount, 'filtered data points');
     deckInstance.setProps({ layers: [createHeatmapLayer()] });
@@ -157,10 +255,73 @@ function updateRangeSelectionBar() {
  * updateVisibleCount - Shows filtered point count with total
  */
 function updateVisibleCount() {
-    const filteredCount = stressData.filter(
-        d => d.stress_level >= stressRange.min && d.stress_level <= stressRange.max
-    ).length;
+    const filteredCount = getFilteredData().length;
     document.getElementById('data-count').textContent = `${filteredCount} / ${stressData.length}`;
+}
+
+/**
+ * initDateRangeControls - Wires up start/end date filters for records
+ */
+function initDateRangeControls() {
+    const startInput = document.getElementById('date-start');
+    const endInput = document.getElementById('date-end');
+    const resetButton = document.getElementById('date-reset');
+
+    if (!startInput || !endInput || !resetButton) return;
+
+    const applyDateFilter = () => {
+        dateRange.start = parseDateStart(startInput.value);
+        dateRange.end = parseDateEnd(endInput.value);
+
+        if (dateRange.start !== null && dateRange.end !== null && dateRange.start > dateRange.end) {
+            dateRange.end = dateRange.start;
+            endInput.value = startInput.value;
+        }
+
+        updateVisibleCount();
+        updateHeatmap();
+    };
+
+    startInput.addEventListener('change', applyDateFilter);
+    endInput.addEventListener('change', applyDateFilter);
+
+    resetButton.addEventListener('click', () => {
+        startInput.value = '';
+        endInput.value = '';
+        dateRange.start = null;
+        dateRange.end = null;
+        updateVisibleCount();
+        updateHeatmap();
+    });
+}
+
+/**
+ * updateDateFilterBounds - Keeps date input bounds aligned with fetched data
+ */
+function updateDateFilterBounds() {
+    const startInput = document.getElementById('date-start');
+    const endInput = document.getElementById('date-end');
+    if (!startInput || !endInput) return;
+
+    const timestamps = stressData
+        .map((record) => record.timestamp)
+        .filter((timestamp) => timestamp !== null);
+
+    if (timestamps.length === 0) {
+        startInput.min = '';
+        startInput.max = '';
+        endInput.min = '';
+        endInput.max = '';
+        return;
+    }
+
+    const minDate = toDateInputValue(Math.min(...timestamps));
+    const maxDate = toDateInputValue(Math.max(...timestamps));
+
+    startInput.min = minDate;
+    startInput.max = maxDate;
+    endInput.min = minDate;
+    endInput.max = maxDate;
 }
 
 /**
@@ -212,7 +373,11 @@ async function fetchStressData() {
         const data = await response.json();
         console.log('Received', data.length, 'records');
         
-        stressData = data;
+        stressData = data.map((record) => ({
+            ...record,
+            timestamp: parseRecordTimestamp(record.datetime)
+        }));
+        updateDateFilterBounds();
         updateHeatmap();
         updateVisibleCount();
         
@@ -234,6 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Starting MRU Stress Heatmap');
     initSidebarToggle();
     initStressRangeControls();
+    initDateRangeControls();
     initMap();
     startPolling();
 });

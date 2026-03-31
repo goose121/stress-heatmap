@@ -10,7 +10,7 @@
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
     
     <!-- deck.gl - Open Source WebGL visualization framework -->
-    <script src="https://unpkg.com/deck.gl@9.0.16/dist.min.js"></script>
+    <script src="https://unpkg.com/deck.gl@8.9.36/dist.min.js"></script>
     
     <!-- Custom styles -->
     <link rel="stylesheet" href="style.css">
@@ -43,6 +43,19 @@
                     <input id="stress-min" class="range-input" type="range" min="1" max="5" step="1" value="1" aria-label="Minimum stress">
                     <input id="stress-max" class="range-input" type="range" min="1" max="5" step="1" value="5" aria-label="Maximum stress">
                 </div>
+            </div>
+
+            <div class="legend">
+                <div class="legend-title">Date Range</div>
+                <div class="date-filter-row">
+                    <label class="date-filter-label" for="date-start">From</label>
+                    <input id="date-start" class="date-input" type="date" aria-label="Start date">
+                </div>
+                <div class="date-filter-row">
+                    <label class="date-filter-label" for="date-end">To</label>
+                    <input id="date-end" class="date-input" type="date" aria-label="End date">
+                </div>
+                <button id="date-reset" class="date-reset" type="button">Clear Date Filter</button>
             </div>
         </div>
     </aside>

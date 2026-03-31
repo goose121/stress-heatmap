@@ -78,7 +78,7 @@ app.use(express.json());
 app.get('/api/stress-data', (req, res) => {
     try {
         const query = `
-            SELECT ip_address, stress_level, longitude, latitude, datetime
+            SELECT stress_level, longitude, latitude, datetime
             FROM stress_reports
         `;
         
@@ -113,8 +113,8 @@ app.post('/api/stress-data', (req, res) => {
         `;
         
         db.prepare(query).run(ip_address, stress_level, longitude, latitude);
-        console.log('Updated record for IP:', ip_address);
-        res.json({ success: true, ip_address: ip_address });
+        console.log('Updated stress report record');
+        res.json({ success: true });
     } catch (err) {
         console.error('Insert error:', err);
         res.status(500).json({ error: 'Failed to insert data' });
