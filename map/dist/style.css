@@ -14,6 +14,11 @@ body {
     overflow: hidden;  /* Prevent scrollbars on full-screen map */
 }
 
+:root {
+    --sidebar-width: 280px;
+    --toggle-size: 28px;
+}
+
 /* Main map container - fills entire viewport */
 #map-container {
     position: absolute;
@@ -23,16 +28,57 @@ body {
     height: 100%;
 }
 
-/* Stats Display - Top right corner */
-.stats {
+/* Collapsible left sidebar with stats and legend */
+.sidebar {
     position: absolute;
-    top: 20px;
-    right: 20px;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: var(--sidebar-width);
+    z-index: 1000;
+    background: rgba(25, 25, 25, 0.9);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    transition: transform 0.25s ease;
+}
+
+.sidebar.collapsed {
+    transform: translateX(calc(var(--sidebar-width) * -1));
+}
+
+.sidebar-toggle {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    width: var(--toggle-size);
+    height: var(--toggle-size);
+    border: none;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 1001;
+}
+
+.sidebar.collapsed .sidebar-toggle {
+    transform: translateX(var(--sidebar-width));
+}
+
+.sidebar-content {
+    height: 100%;
+    padding: 60px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* Stats card in sidebar */
+.stats {
     background: rgba(35, 35, 35, 0.9); 
     padding: 12px 16px;
     border-radius: 8px;
     color: white;
-    z-index: 1000;  
     font-size: 0.85rem;
 }
 
@@ -42,17 +88,13 @@ body {
     font-weight: bold;
 }
 
-/* Legend - Bottom right corner */
+/* Legend card in sidebar */
 .legend {
-    position: absolute;
-    bottom: 30px;
-    right: 20px;
     background: rgba(35, 35, 35, 0.9);
     padding: 15px;
     border-radius: 8px;
     color: white;
-    z-index: 1000;
-    min-width: 200px;
+    min-width: 0;
 }
 
 .legend-title {
@@ -61,24 +103,131 @@ body {
     color: #ccc;
 }
 
-/* Gradient bar showing stress level color mapping - Blue to Red */
-.legend-gradient {
-    height: 12px;
-    background: linear-gradient(to right, 
-        rgb(0, 0, 255),       
-        rgb(0, 255, 0),       
-        rgb(255, 255, 0),     
-        rgb(255, 165, 0),     
-        rgb(255, 0, 0)       
-    );
-    border-radius: 4px;
-}
-
-/* Labels below gradient (1, 2, 3, 4, 5) */
-.legend-labels {
+.dual-slider-labels {
     display: flex;
     justify-content: space-between;
     font-size: 0.75rem;
-    margin-top: 5px;
-    color: #aaa;
+    color: #bdbdbd;
+    margin-bottom: 8px;
+}
+
+.range-slider {
+    position: relative;
+    height: 26px;
+}
+
+.range-track,
+.range-mask {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 10px;
+    border-radius: 999px;
+}
+
+.range-track {
+    left: 0;
+    right: 0;
+    background: linear-gradient(to right,
+        rgb(0, 0, 255),
+        rgb(0, 255, 0),
+        rgb(255, 255, 0),
+        rgb(255, 165, 0),
+        rgb(255, 0, 0)
+    );
+}
+
+.range-mask {
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.range-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 26px;
+    background: none;
+    appearance: none;
+    -webkit-appearance: none;
+    pointer-events: none;
+}
+
+.range-input::-webkit-slider-runnable-track {
+    height: 10px;
+    background: transparent;
+}
+
+.range-input::-moz-range-track {
+    height: 10px;
+    background: transparent;
+}
+
+.range-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    pointer-events: auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: #1d1d1d;
+    margin-top: -4px;
+    cursor: pointer;
+}
+
+.range-input::-moz-range-thumb {
+    pointer-events: auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: #1d1d1d;
+    cursor: pointer;
+}
+
+.date-filter-row {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.date-filter-label {
+    font-size: 0.78rem;
+    color: #cfcfcf;
+}
+
+.date-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 0.8rem;
+}
+
+.date-input:focus {
+    outline: 1px solid rgba(255, 255, 255, 0.5);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.date-reset {
+    margin-top: 4px;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+
+.date-reset:hover {
+    background: rgba(255, 255, 255, 0.24);
 }

@@ -10,7 +10,7 @@
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
     
     <!-- deck.gl - Open Source WebGL visualization framework -->
-    <script src="https://unpkg.com/deck.gl@9.0.16/dist.min.js"></script>
+    <script src="https://unpkg.com/deck.gl@8.9.36/dist.min.js"></script>
     
     <!-- Custom styles -->
     <link rel="stylesheet" href="style.css">
@@ -18,24 +18,47 @@
 <body>
     <!-- Main map container -->
     <div id="map-container"></div>
-    
-    <!-- Stats display showing data point count -->
-    <div class="stats">
-        Data Points: <span id="data-count">0</span>
-    </div>
 
-    <!-- Color legend showing stress levels -->
-    <div class="legend">
-        <div class="legend-title">Stress Level</div>
-        <div class="legend-gradient"></div>
-        <div class="legend-labels">
-            <span>1 (Low)</span>
-            <span>2</span>
-            <span>3</span>
-            <span>4</span>
-            <span>5 (High)</span>
+    <!-- Collapsible right sidebar -->
+    <aside id="sidebar" class="sidebar" aria-label="Map details panel">
+        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true"><</button>
+
+        <div class="sidebar-content">
+            <!-- Stats display showing data point count -->
+            <div class="stats">
+                Data Points: <span id="data-count">0</span>
+            </div>
+
+            <!-- Stress range controls -->
+            <div class="legend">
+                <div class="legend-title">Stress Range</div>
+                <div class="dual-slider-labels">
+                    <span>1 (Low)</span>
+                    <span>5 (High)</span>
+                </div>
+                <div class="range-slider" aria-label="Stress range selector">
+                    <div class="range-track"></div>
+                    <div id="range-mask-left" class="range-mask"></div>
+                    <div id="range-mask-right" class="range-mask"></div>
+                    <input id="stress-min" class="range-input" type="range" min="1" max="5" step="1" value="1" aria-label="Minimum stress">
+                    <input id="stress-max" class="range-input" type="range" min="1" max="5" step="1" value="5" aria-label="Maximum stress">
+                </div>
+            </div>
+
+            <div class="legend">
+                <div class="legend-title">Date Range</div>
+                <div class="date-filter-row">
+                    <label class="date-filter-label" for="date-start">From</label>
+                    <input id="date-start" class="date-input" type="date" aria-label="Start date">
+                </div>
+                <div class="date-filter-row">
+                    <label class="date-filter-label" for="date-end">To</label>
+                    <input id="date-end" class="date-input" type="date" aria-label="End date">
+                </div>
+                <button id="date-reset" class="date-reset" type="button">Clear Date Filter</button>
+            </div>
         </div>
-    </div>
+    </aside>
 
     <!-- Main application script -->
     <script src="script.js"></script>

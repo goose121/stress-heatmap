@@ -1,6 +1,6 @@
 {
   "name": "mru-stress-heatmap",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MRU Student Stress Mapping Module",
   "main": "src/server.js",
   "type": "commonjs",
@@ -9,7 +9,7 @@
     "seed": "node seed.js"
   },
   "dependencies": {
-    "better-sqlite3": "^12.6.2",
+    "better-sqlite3": "^12.8.0",
     "express": "5.2.1"
   }
 }
