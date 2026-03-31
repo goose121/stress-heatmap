@@ -12,52 +12,76 @@ const DB_PATH = path.join(__dirname, '..', 'data.sqlite');
 const db = new Database(DB_PATH);
 
 const MRU_CAMPUS_POLYGON = [
-    [-114.13241725830541, 51.01570121296195],
-    [-114.12267446381439, 51.01225661725332],
-    [-114.12375903330657, 51.011668197055535],
-    [-114.12697608177085, 51.01100395607877],
-    [-114.1279496147216, 51.010871196610964],
-    [-114.12856184446339, 51.010640471958524],
-    [-114.12916055470588, 51.01023142276505],
-    [-114.12949274226536, 51.00977254805247],
-    [-114.12957772037544, 51.009410882686815],
-    [-114.12956226972959, 51.008781873551804],
-    [-114.1296311757615, 51.00799569543422],
-    [-114.13541321345642, 51.00792847501724],
-    [-114.1374109007201, 51.00932345864024],
-    [-114.14087168274888, 51.00978899694478],
-    [-114.1411416565343, 51.01238587337505],
-    [-114.13852496651369, 51.01237885769734],
-    [-114.1374910996301, 51.01260101359258],
-    [-114.13639318782118, 51.01322034640498],
-    [-114.13362306987396, 51.01530910192349],
-    [-114.13241725830541, 51.01570121296195]
+    [-114.13236048415135, 51.015601290115555],
+    [-114.12291537273408, 51.01228879720036],
+    [-114.12356570719953, 51.01182553528292],
+    [-114.12730806536716, 51.01106093048902],
+    [-114.12863221207917, 51.010639016879075],
+    [-114.1293741097477, 51.010010293965635],
+    [-114.13499620859784, 51.00791230857671],
+    [-114.13729462624703, 51.00945214674479],
+    [-114.13720000276643, 51.0113932209571],
+    [-114.13641114214886, 51.011892595450576],
+    [-114.13740498223731, 51.012567090761245],
+    [-114.13402403375976, 51.0149920570997],
+    [-114.13288616195481, 51.01545876123327]
 ];
+
+const DEPARTMENT_TO_FACULTY = {
+    'Economics, Justice, and Policy Studies': 'Faculty of Arts',
+    'English, Languages, and Cultures': 'Faculty of Arts',
+    'Humanities': 'Faculty of Arts',
+    'Interior Design': 'Faculty of Arts',
+    'Psychology': 'Faculty of Arts',
+    'Sociology and Anthropology': 'Faculty of Arts',
+
+    'Bissett School of Business': 'Faculty of Business',
+    'Communication Studies and Aviation': 'Faculty of Business',
+    'Accounting': 'Faculty of Business',
+    'Aviation': 'Faculty of Business',
+    'Aviation Management': 'Faculty of Business',
+    'Finance': 'Faculty of Business',
+    'General Management': 'Faculty of Business',
+    'Human Resources': 'Faculty of Business',
+    'Innovation & Entrepreneurship': 'Faculty of Business',
+    'International Business': 'Faculty of Business',
+    'Marketing': 'Faculty of Business',
+    'Social Innovation': 'Faculty of Business',
+    'Supply Chain Management': 'Faculty of Business',
+
+    'Broadcast Media Studies': 'School of Communication Studies',
+    'Information Design': 'School of Communication Studies',
+    'Journalism and Digital Media': 'School of Communication Studies',
+    'Public Relations': 'School of Communication Studies',
+
+    'Professional and Continuing Studies': 'Faculty of Continuing Education',
+    'The Conservatory': 'Faculty of Continuing Education',
+    'Occupational programs': 'Faculty of Continuing Education',
+    'Funeral Service Education': 'Faculty of Continuing Education',
+    'Massage Therapy': 'Faculty of Continuing Education',
+    'Personal Fitness Trainer': 'Faculty of Continuing Education',
+    'Academic Upgrading': 'Faculty of Continuing Education',
+    'Transitional Vocational Programs': 'Faculty of Continuing Education',
+    'Inclusive Post-Secondary Education': 'Faculty of Continuing Education',
+
+    'Child Studies and Social Work': 'Faculty of Health, Community and Education',
+    'Education': 'Faculty of Health, Community and Education',
+    'Health and Physical Education': 'Faculty of Health, Community and Education',
+    'School of Nursing and Midwifery': 'Faculty of Health, Community and Education',
+
+    'Biology': 'Faculty of Science and Technology',
+    'Chemistry and Physics': 'Faculty of Science and Technology',
+    'Earth and Environmental Sciences': 'Faculty of Science and Technology',
+    'Mathematics and Computing': 'Faculty of Science and Technology'
+};
+
+const VALID_DEPARTMENTS = new Set(Object.keys(DEPARTMENT_TO_FACULTY));
 
 /**
  * toSqliteUtcDatetime - Converts Date to SQLite UTC datetime format.
  */
 function toSqliteUtcDatetime(date) {
     return date.toISOString().slice(0, 19).replace('T', ' ');
-}
-
-/**
- * getWeekStartUtcDate - Returns YYYY-MM-DD for Sunday of the datetime week in UTC.
- */
-function getWeekStartUtcDate(date) {
-    const utc = new Date(Date.UTC(
-        date.getUTCFullYear(),
-        date.getUTCMonth(),
-        date.getUTCDate(),
-        0,
-        0,
-        0,
-        0
-    ));
-
-    const day = utc.getUTCDay();
-    utc.setUTCDate(utc.getUTCDate() - day);
-    return utc.toISOString().slice(0, 10);
 }
 
 /**
@@ -82,27 +106,20 @@ function isPointInPolygon(longitude, latitude, polygon) {
 }
 
 /**
- * Validate expected schema without mutating legacy databases.
+ * Basic startup check: only verify required tables exist.
  */
 function validateSchema() {
-    const tableExists = db.prepare(`
-        SELECT 1
-        FROM sqlite_master
-        WHERE type = 'table' AND name = 'stress_reports'
-    `).get();
+    const requiredTables = ['stress_reports', 'display'];
+    for (const tableName of requiredTables) {
+        const tableExists = db.prepare(`
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table' AND name = ?
+        `).get(tableName);
 
-    if (!tableExists) {
-        throw new Error('Missing required table: stress_reports. Run seed.js first.');
-    }
-
-    const columns = db.prepare(`PRAGMA table_info(stress_reports)`).all();
-    const hasRequiredColumns = ['ip_address', 'stress_level', 'longitude', 'latitude', 'datetime', 'week_start']
-        .every((name) => columns.some((column) => column.name === name));
-    const hasIpWeekPrimaryKey = columns.some((column) => column.name === 'ip_address' && column.pk === 1)
-        && columns.some((column) => column.name === 'week_start' && column.pk === 2);
-
-    if (!hasRequiredColumns || !hasIpWeekPrimaryKey) {
-        throw new Error('Unexpected stress_reports schema. Reseed the database with seed.js.');
+        if (!tableExists) {
+            throw new Error('Missing required table: ' + tableName);
+        }
     }
 }
 
@@ -127,12 +144,11 @@ app.use(express.json());
 app.get('/api/stress-data', (req, res) => {
     try {
         const query = `
-            SELECT stress_level, longitude, latitude, datetime
-            FROM stress_reports
+            SELECT stress_level, longitude, latitude, week_of, department, faculty
+            FROM display
         `;
         
         const rows = db.prepare(query).all();
-        console.log('Fetched', rows.length, 'records');
         res.json(rows);
     } catch (err) {
         console.error('Database error:', err);
@@ -142,16 +158,27 @@ app.get('/api/stress-data', (req, res) => {
 
 /**
  * POST /api/stress-data - Add or update stress report
- * Points are considered the same for the same IP within the same week
+ * Points are considered the same for the same IP
  */
 app.post('/api/stress-data', (req, res) => {
-    const { ip_address, stress_level, longitude, latitude, datetime } = req.body;
+    const {
+        ip_address,
+        stress_level,
+        longitude,
+        latitude,
+        datetime,
+        department
+    } = req.body;
     const parsedStress = Number(stress_level);
     const parsedLongitude = Number(longitude);
     const parsedLatitude = Number(latitude);
     
-    if (!ip_address || !Number.isFinite(parsedStress) || !Number.isFinite(parsedLongitude) || !Number.isFinite(parsedLatitude)) {
+    if (!ip_address || !department || !Number.isFinite(parsedStress) || !Number.isFinite(parsedLongitude) || !Number.isFinite(parsedLatitude)) {
         return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (!VALID_DEPARTMENTS.has(department)) {
+        return res.status(400).json({ error: 'Invalid department selection' });
     }
     
     if (parsedStress < 1 || parsedStress > 5) {
@@ -169,21 +196,21 @@ app.post('/api/stress-data', (req, res) => {
     }
 
     const recordDatetime = toSqliteUtcDatetime(recordDate);
-    const weekStart = getWeekStartUtcDate(recordDate);
-    
+
     try {
         const query = `
-            INSERT INTO stress_reports (ip_address, stress_level, longitude, latitude, datetime, week_start)
+            INSERT INTO stress_reports (ip_address, stress_level, longitude, latitude, datetime, department)
             VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(ip_address, week_start)
+            ON CONFLICT(ip_address)
             DO UPDATE SET
                 stress_level = excluded.stress_level,
                 longitude = excluded.longitude,
                 latitude = excluded.latitude,
-                datetime = excluded.datetime
+                datetime = excluded.datetime,
+                department = excluded.department
         `;
         
-        db.prepare(query).run(ip_address, parsedStress, parsedLongitude, parsedLatitude, recordDatetime, weekStart);
+        db.prepare(query).run(ip_address, parsedStress, parsedLongitude, parsedLatitude, recordDatetime, department);
         console.log('Updated stress report record');
         res.json({ success: true });
     } catch (err) {

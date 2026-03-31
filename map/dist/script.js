@@ -6,10 +6,10 @@
 const { DeckGL, HeatmapLayer } = deck;
 
 const MRU_BOUNDS = {
-    minLng: -114.1412,
-    minLat: 51.0079,
-    maxLng: -114.1226,
-    maxLat: 51.0158
+    minLng: -114.1410438541962,
+    minLat: 51.006873208803576,
+    maxLng: -114.11845117560004,
+    maxLat: 51.01637355900997
 };
 
 const CONFIG = {
@@ -31,6 +31,7 @@ const CONFIG = {
 
 let stressData = [];
 let deckInstance = null;
+let departmentOptionsSignature = '';
 const stressRange = {
     min: 1,
     max: 5
@@ -39,18 +40,19 @@ const dateRange = {
     start: null,
     end: null
 };
+const categoryFilters = {
+    program: ''
+};
 let hasInitializedDateRange = false;
 
 /**
- * parseRecordTimestamp - Parses API datetime values into epoch milliseconds
+ * parseWeekOfTimestamp - Parses display.week_of (YYYY-MM-DD) into epoch milliseconds
  */
-function parseRecordTimestamp(datetimeValue) {
-    if (!datetimeValue) return null;
+function parseWeekOfTimestamp(weekOfValue) {
+    if (!weekOfValue) return null;
 
-    const raw = String(datetimeValue).trim();
-    const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
-    const parsed = Date.parse(normalized);
-
+    const raw = String(weekOfValue).trim();
+    const parsed = Date.parse(`${raw}T00:00:00`);
     return Number.isNaN(parsed) ? null : parsed;
 }
 
@@ -110,6 +112,16 @@ function clampDateToDataBounds(date, minTimestamp, maxTimestamp) {
 function matchesFilters(record) {
     const inStressRange = record.stress_level >= stressRange.min && record.stress_level <= stressRange.max;
     if (!inStressRange) return false;
+
+    if (categoryFilters.program) {
+        if (categoryFilters.program.startsWith('faculty:')) {
+            const selectedFaculty = categoryFilters.program.slice('faculty:'.length);
+            if (record.faculty !== selectedFaculty) return false;
+        } else if (categoryFilters.program.startsWith('department:')) {
+            const selectedDepartment = categoryFilters.program.slice('department:'.length);
+            if (record.department !== selectedDepartment) return false;
+        }
+    }
 
     if (dateRange.start === null && dateRange.end === null) return true;
     if (record.timestamp === null) return false;
@@ -243,15 +255,14 @@ function initMap() {
 }
 
 /**
- * updateHeatmap - Refresh heatmap with current data
+ * applyFiltersAndRender - Runs filtering once per UI action and updates map + count
  */
-function updateHeatmap() {
-    if (!deckInstance) return;
-
+function applyFiltersAndRender() {
     const filteredData = getFilteredData();
-
-    console.log('Updating heatmap with', filteredData.length, 'filtered data points');
-    deckInstance.setProps({ layers: [createHeatmapLayer(filteredData)] });
+    if (deckInstance) {
+        deckInstance.setProps({ layers: [createHeatmapLayer(filteredData)] });
+    }
+    document.getElementById('data-count').textContent = `${filteredData.length} / ${stressData.length}`;
 }
 
 /**
@@ -272,12 +283,87 @@ function updateRangeSelectionBar() {
     rightMask.style.right = '0%';
 }
 
-/**
- * updateVisibleCount - Shows filtered point count with total
- */
-function updateVisibleCount() {
-    const filteredCount = getFilteredData().length;
-    document.getElementById('data-count').textContent = `${filteredCount} / ${stressData.length}`;
+function refreshCategoryFilterOptions() {
+    const departmentSelect = document.getElementById('filter-department');
+    if (!departmentSelect) return;
+
+    const groupedDepartments = new Map();
+
+    stressData.forEach((record) => {
+        if (!record.faculty || !record.department) return;
+        if (!groupedDepartments.has(record.faculty)) {
+            groupedDepartments.set(record.faculty, new Set());
+        }
+        groupedDepartments.get(record.faculty).add(record.department);
+    });
+
+    const facultyNames = Array.from(groupedDepartments.keys()).sort((a, b) => a.localeCompare(b));
+    const nextSignature = facultyNames
+        .map((faculty) => `${faculty}:${Array.from(groupedDepartments.get(faculty)).sort((a, b) => a.localeCompare(b)).join('|')}`)
+        .join('||');
+
+    if (nextSignature === departmentOptionsSignature) {
+        return;
+    }
+
+    departmentOptionsSignature = nextSignature;
+
+    const previous = departmentSelect.value;
+    departmentSelect.innerHTML = '';
+
+    const allOption = document.createElement('option');
+    allOption.value = '';
+    allOption.textContent = 'All Faculties and Departments';
+    departmentSelect.appendChild(allOption);
+
+    facultyNames.forEach((faculty) => {
+        const facultyOption = document.createElement('option');
+        facultyOption.value = `faculty:${faculty}`;
+        facultyOption.textContent = `Faculty: ${faculty}`;
+        departmentSelect.appendChild(facultyOption);
+    });
+
+    facultyNames.forEach((faculty) => {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = `${faculty} Departments`;
+
+        Array.from(groupedDepartments.get(faculty)).sort((a, b) => a.localeCompare(b)).forEach((department) => {
+            const option = document.createElement('option');
+            option.value = `department:${department}`;
+            option.textContent = department;
+            optgroup.appendChild(option);
+        });
+
+        departmentSelect.appendChild(optgroup);
+    });
+
+    const availableValues = [''];
+
+    facultyNames.forEach((faculty) => {
+        availableValues.push(`faculty:${faculty}`);
+        Array.from(groupedDepartments.get(faculty)).forEach((department) => {
+            availableValues.push(`department:${department}`);
+        });
+    });
+
+    if (availableValues.includes(previous)) {
+        departmentSelect.value = previous;
+    }
+
+    if (categoryFilters.program && !availableValues.includes(categoryFilters.program)) {
+        categoryFilters.program = '';
+        departmentSelect.value = '';
+    }
+}
+
+function initCategoryFilters() {
+    const departmentSelect = document.getElementById('filter-department');
+    if (!departmentSelect) return;
+
+    departmentSelect.addEventListener('change', () => {
+        categoryFilters.program = departmentSelect.value;
+        applyFiltersAndRender();
+    });
 }
 
 /**
@@ -286,12 +372,12 @@ function updateVisibleCount() {
 function initDateRangeControls() {
     const startInput = document.getElementById('date-start');
     const endInput = document.getElementById('date-end');
-    const resetButton = document.getElementById('date-reset');
+    const clearButton = document.getElementById('date-preset-clear');
     const thisWeekButton = document.getElementById('date-preset-this-week');
     const thisMonthButton = document.getElementById('date-preset-this-month');
     const lastMonthButton = document.getElementById('date-preset-last-month');
 
-    if (!startInput || !endInput || !resetButton) return;
+    if (!startInput || !endInput || !clearButton) return;
 
     const applyDateFilter = () => {
         dateRange.start = parseDateStart(startInput.value);
@@ -302,8 +388,7 @@ function initDateRangeControls() {
             endInput.value = startInput.value;
         }
 
-        updateVisibleCount();
-        updateHeatmap();
+        applyFiltersAndRender();
     };
 
     startInput.addEventListener('change', applyDateFilter);
@@ -358,13 +443,12 @@ function initDateRangeControls() {
         });
     }
 
-    resetButton.addEventListener('click', () => {
+    clearButton.addEventListener('click', () => {
         startInput.value = '';
         endInput.value = '';
         dateRange.start = null;
         dateRange.end = null;
-        updateVisibleCount();
-        updateHeatmap();
+        applyFiltersAndRender();
     });
 }
 
@@ -376,6 +460,17 @@ function updateDateFilterBounds() {
     const endInput = document.getElementById('date-end');
     if (!startInput || !endInput) return;
 
+    const setCurrentWeekRange = () => {
+        const now = new Date();
+        const weekStart = getStartOfWeek(now);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        startInput.value = toLocalDateInputValue(weekStart);
+        endInput.value = toLocalDateInputValue(weekEnd);
+        dateRange.start = parseDateStart(startInput.value);
+        dateRange.end = parseDateEnd(endInput.value);
+    };
+
     const timestamps = stressData
         .map((record) => record.timestamp)
         .filter((timestamp) => timestamp !== null);
@@ -385,6 +480,11 @@ function updateDateFilterBounds() {
         startInput.max = '';
         endInput.min = '';
         endInput.max = '';
+
+        if (!hasInitializedDateRange) {
+            setCurrentWeekRange();
+            hasInitializedDateRange = true;
+        }
         return;
     }
 
@@ -433,8 +533,7 @@ function initStressRangeControls() {
         }
 
         updateRangeSelectionBar();
-        updateVisibleCount();
-        updateHeatmap();
+        applyFiltersAndRender();
     });
 
     maxSlider.addEventListener('input', () => {
@@ -446,8 +545,7 @@ function initStressRangeControls() {
         }
 
         updateRangeSelectionBar();
-        updateVisibleCount();
-        updateHeatmap();
+        applyFiltersAndRender();
     });
 
     updateRangeSelectionBar();
@@ -462,15 +560,14 @@ async function fetchStressData() {
         if (!response.ok) throw new Error('HTTP error status: ' + response.status);
         
         const data = await response.json();
-        console.log('Received', data.length, 'records');
         
         stressData = data.map((record) => ({
             ...record,
-            timestamp: parseRecordTimestamp(record.datetime)
+            timestamp: parseWeekOfTimestamp(record.week_of)
         }));
+        refreshCategoryFilterOptions();
         updateDateFilterBounds();
-        updateHeatmap();
-        updateVisibleCount();
+        applyFiltersAndRender();
         
     } catch (error) {
         console.error('Error fetching stress data:', error);
@@ -491,6 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initSidebarToggle();
     initStressRangeControls();
     initDateRangeControls();
+    initCategoryFilters();
     initMap();
     startPolling();
 });
