@@ -9,22 +9,26 @@ const path = require('path');
 const dbFilePath = path.join(__dirname, 'data.sqlite');
 
 const MRU_CAMPUS_POLYGON = [
-    [-114.1376, 51.0073],
-    [-114.1350, 51.0070],
-    [-114.1326, 51.0072],
-    [-114.1293, 51.0078],
-    [-114.1269, 51.0083],
-    [-114.1246, 51.0098],
-    [-114.1230, 51.0116],
-    [-114.1224, 51.0136],
-    [-114.1233, 51.0150],
-    [-114.1264, 51.0158],
-    [-114.1302, 51.0159],
-    [-114.1336, 51.0154],
-    [-114.1362, 51.0145],
-    [-114.1378, 51.0128],
-    [-114.1380, 51.0105],
-    [-114.1376, 51.0073]
+    [-114.13241725830541, 51.01570121296195],
+    [-114.12267446381439, 51.01225661725332],
+    [-114.12375903330657, 51.011668197055535],
+    [-114.12697608177085, 51.01100395607877],
+    [-114.1279496147216, 51.010871196610964],
+    [-114.12856184446339, 51.010640471958524],
+    [-114.12916055470588, 51.01023142276505],
+    [-114.12949274226536, 51.00977254805247],
+    [-114.12957772037544, 51.009410882686815],
+    [-114.12956226972959, 51.008781873551804],
+    [-114.1296311757615, 51.00799569543422],
+    [-114.13541321345642, 51.00792847501724],
+    [-114.1374109007201, 51.00932345864024],
+    [-114.14087168274888, 51.00978899694478],
+    [-114.1411416565343, 51.01238587337505],
+    [-114.13852496651369, 51.01237885769734],
+    [-114.1374910996301, 51.01260101359258],
+    [-114.13639318782118, 51.01322034640498],
+    [-114.13362306987396, 51.01530910192349],
+    [-114.13241725830541, 51.01570121296195]
 ];
 
 const db = new Database(dbFilePath);
@@ -38,17 +42,17 @@ db.exec(`
     DROP TABLE IF EXISTS stress_reports;
 
     CREATE TABLE stress_reports (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
         ip_address TEXT NOT NULL,
         stress_level INTEGER NOT NULL CHECK(stress_level BETWEEN 1 AND 5),
         longitude REAL NOT NULL,
         latitude REAL NOT NULL,
         datetime TEXT NOT NULL DEFAULT (datetime('now')),
-        week_start TEXT NOT NULL
+        week_start TEXT NOT NULL,
+        PRIMARY KEY (ip_address, week_start)
     );
 
-    CREATE UNIQUE INDEX idx_stress_reports_ip_week
-    ON stress_reports (ip_address, week_start)
+    CREATE INDEX idx_stress_reports_datetime
+    ON stress_reports (datetime)
 `);
 
 console.log('Table created/verified');
@@ -61,7 +65,7 @@ function toSqliteUtcDatetime(date) {
 }
 
 /**
- * getWeekStartUtcDate - Returns YYYY-MM-DD for Monday of the datetime week in UTC.
+ * getWeekStartUtcDate - Returns YYYY-MM-DD for Sunday of the datetime week in UTC.
  */
 function getWeekStartUtcDate(date) {
     const utc = new Date(Date.UTC(
@@ -75,8 +79,7 @@ function getWeekStartUtcDate(date) {
     ));
 
     const day = utc.getUTCDay();
-    const diffToMonday = day === 0 ? -6 : 1 - day;
-    utc.setUTCDate(utc.getUTCDate() + diffToMonday);
+    utc.setUTCDate(utc.getUTCDate() - day);
     return utc.toISOString().slice(0, 10);
 }
 
@@ -105,10 +108,10 @@ function isPointInPolygon(longitude, latitude, polygon) {
  * randomCampusCoordinate - Returns a random [lng, lat] inside MRU campus polygon.
  */
 function randomCampusCoordinate() {
-    const minLng = -114.1380;
-    const maxLng = -114.1220;
-    const minLat = 51.0070;
-    const maxLat = 51.0160;
+    const minLng = -114.1412;
+    const maxLng = -114.1226;
+    const minLat = 51.0079;
+    const maxLat = 51.0158;
 
     for (let attempts = 0; attempts < 300; attempts++) {
         const longitude = minLng + Math.random() * (maxLng - minLng);
