@@ -32,20 +32,20 @@ object ClassificationModel {
         return try {
             // Your Netron graph showed 'string_input'
             val inputName = session.inputNames.iterator().next()
-            val tensor = OnnxTensor.createTensor(ortEnv, arrayOf(text))
+            val tensor = OnnxTensor.createTensor(ortEnv, arrayOf(arrayOf(text)))
 
             // Run inference
             val output = session.run(Collections.singletonMap(inputName, tensor))
 
             // Get the 'label' output from the graph
-            val labelValue = output.get("label").get() as LongArray
+            val labelValue = (output.get("label").get().value as? LongArray)!!
             val result = labelValue[0].toInt()
 
             Log.d("ONNX", "Predicted Stress Level: $result")
             result
         } catch (e: Exception) {
-            Log.e("ONNX", "Inference failed, returning default 3", e)
-            3
+            Log.e("ONNX", "Inference failed, returning null", e)
+            null
         }
     }
 }
