@@ -26,7 +26,6 @@ def test():
     predictions = predict_onnx(session, test_cases)
 
     print(f"{'Test Sentence':<85} | {'Predicted Level'}")
-    print("-" * 103)
     for text, pred in zip(test_cases, predictions):
         display_text = (text[:80] + '..') if len(text) > 80 else text
         print(f"{display_text:<85} | {pred}")
