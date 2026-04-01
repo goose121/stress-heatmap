@@ -45,19 +45,18 @@ const DEPARTMENT_TO_FACULTY = {
     'Psychology': 'Faculty of Arts',
     'Sociology and Anthropology': 'Faculty of Arts',
 
-    'Bissett School of Business': 'Faculty of Business',
-    'Communication Studies and Aviation': 'Faculty of Business',
-    'Accounting': 'Faculty of Business',
-    'Aviation': 'Faculty of Business',
-    'Aviation Management': 'Faculty of Business',
-    'Finance': 'Faculty of Business',
-    'General Management': 'Faculty of Business',
-    'Human Resources': 'Faculty of Business',
-    'Innovation & Entrepreneurship': 'Faculty of Business',
-    'International Business': 'Faculty of Business',
-    'Marketing': 'Faculty of Business',
-    'Social Innovation': 'Faculty of Business',
-    'Supply Chain Management': 'Faculty of Business',
+    'Communication Studies and Aviation': 'Bissett School of Business',
+    'Accounting': 'Bissett School of Business',
+    'Aviation': 'Bissett School of Business',
+    'Aviation Management': 'Bissett School of Business',
+    'Finance': 'Bissett School of Business',
+    'General Management': 'Bissett School of Business',
+    'Human Resources': 'Bissett School of Business',
+    'Innovation & Entrepreneurship': 'Bissett School of Business',
+    'International Business': 'Bissett School of Business',
+    'Marketing': 'Bissett School of Business',
+    'Social Innovation': 'Bissett School of Business',
+    'Supply Chain Management': 'Bissett School of Business',
 
     'Broadcast Media Studies': 'School of Communication Studies',
     'Information Design': 'School of Communication Studies',
@@ -67,9 +66,6 @@ const DEPARTMENT_TO_FACULTY = {
     'Professional and Continuing Studies': 'Faculty of Continuing Education',
     'The Conservatory': 'Faculty of Continuing Education',
     'Occupational programs': 'Faculty of Continuing Education',
-    'Funeral Service Education': 'Faculty of Continuing Education',
-    'Massage Therapy': 'Faculty of Continuing Education',
-    'Personal Fitness Trainer': 'Faculty of Continuing Education',
     'Academic Upgrading': 'Faculty of Continuing Education',
     'Transitional Vocational Programs': 'Faculty of Continuing Education',
     'Inclusive Post-Secondary Education': 'Faculty of Continuing Education',
@@ -119,7 +115,14 @@ db.exec(`
         latitude REAL NOT NULL,
         week_of TEXT NOT NULL,
         department TEXT NOT NULL,
-        faculty TEXT NOT NULL
+        faculty TEXT NOT NULL CHECK(faculty IN (
+            'Bissett School of Business',
+            'Faculty of Arts',
+            'Faculty of Continuing Education',
+            'Faculty of Health, Community and Education',
+            'Faculty of Science and Technology',
+            'School of Communication Studies'
+        ))
     );
 
     CREATE INDEX idx_display_week_of
