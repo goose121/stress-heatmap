@@ -180,12 +180,8 @@ def export_pipeline_onnx(vectorizer_wrapper, classifier, filepath, target_opset=
     size_kb = os.path.getsize(filepath) / 1024
     print(f" Pipeline ONNX model saved to {filepath}  ({size_kb:.1f} KB)")
     return filepath
-
-
-# -----------------------------------------------------------------------------
-# ONNX inference helpers  (used by test.py and any future inference code)
-# -----------------------------------------------------------------------------
-
+    
+# ONNX inference helpers
 def load_onnx_session(filepath):
     """
     Load an ONNX inference session.
