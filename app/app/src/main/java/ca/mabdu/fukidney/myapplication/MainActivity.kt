@@ -48,10 +48,15 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 1. Initialize the AI Model (Critical!)
+        ClassificationModel.init(this)
+
+        // 2. Setup the UI
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                    MainContent()
+                MainContent()
             }
         }
     }
@@ -154,7 +159,7 @@ class MainActivity : ComponentActivity() {
                 NetworkHandler.sendClassification(
                     cl = ClassificationModel.classify(
                         data
-                    ),
+                    )!!,
                     location,
                     ctx = ctx,
                 )
