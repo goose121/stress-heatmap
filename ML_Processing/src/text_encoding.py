@@ -1,304 +1,177 @@
-import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.pipeline import Pipeline
-import pickle
+"""
+Model architecture, dataset, and helper utilities
+
+Architecture
+  Input text ->
+  AutoTokenizer  (all-MiniLM-L6-v2 - 384-dim, 12 layers) ->
+  AutoModel (transformer encoder) ->
+  Mean pooling over token embeddings ->
+  Linear(384 -> hidden_dim) -> ReLU -> Dropout ->
+  Linear(hidden_dim -> 5) ->
+  Logits (softmax applied at inference time)
+"""
+
 import os
-from skl2onnx import convert_sklearn
-from skl2onnx.common.data_types import StringTensorType
-import onnxruntime as ort
+import torch
+import torch.nn as nn
+import pandas as pd
+from torch.utils.data import Dataset
+from transformers import AutoTokenizer, AutoModel
 
+# Constants
 
-class TextVectorizer:
+SBERT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+NUM_CLASSES = 5
+EMBED_DIM = 384 # hidden size of all-MiniLM-L6-v2
+LEVEL_NAMES = ["Level 1", "Level 2", "Level 3", "Level 4", "Level 5"]
+
+# Dataset
+class StressDataset(Dataset):
     """
-    Wrapper class for TF-IDF vectorization
-    Handles fitting, transforming, saving, and loading
+    Loads training_data.csv and tokenises on the fly.
+
+    CSV format (after the CSV-fix pass):
+        "text","label"
+        "I am overwhelmed","5"
+
+    Labels 1-5 are shifted to 0-4 for CrossEntropyLoss.
     """
-    
-    def __init__(self, max_features=2000, ngram_range=(1, 2), min_df=2):
+
+    def __init__(self, texts, labels, tokenizer, max_length=128):
         """
-        Initialize TF-IDF vectorizer with parameters
-        
         Args:
-            max_features (int): Maximum vocabulary size (default: 2000)
-            ngram_range (tuple): Range of n-grams (default: (1,2) for unigrams + bigrams)
-            min_df (int): Minimum document frequency to include a term (default: 2)
+            texts (list[str]) : raw sentence strings
+            labels (list[int]) : stress levels 1-5
+            tokenizer : HuggingFace tokenizer instance
+            max_length (int) : token cap (128 is generous for short logs)
         """
-        self.vectorizer = TfidfVectorizer(
-            max_features=max_features,
-            ngram_range=ngram_range,
-            min_df=min_df,
-            stop_words='english',  # Remove common English words
-            lowercase=True,         # Convert to lowercase
-            strip_accents=None # Remove accents
+        self.texts = list(texts)
+        self.labels = [int(l) - 1 for l in labels]   # shift 1-5 → 0-4
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        encoding = self.tokenizer(
+            self.texts[idx],
+            padding="max_length",
+            truncation=True,
+            max_length=self.max_length,
+            return_tensors="pt",
         )
-        self.is_fitted = False
-        self.vocab_size = 0
-    
-    def fit(self, texts):
-        """
-        Fit the vectorizer on training texts
-        
-        Args:
-            texts (list or array): List of text strings
-        
-        Returns:
-            self
-        """
-        self.vectorizer.fit(texts)
-        self.is_fitted = True
-        self.vocab_size = len(self.vectorizer.get_feature_names_out())
-        return self
-    
-    def transform(self, texts):
-        """
-        Transform texts to TF-IDF feature vectors
-        
-        Args:
-            texts (list or array): List of text strings
-        
-        Returns:
-            scipy.sparse matrix: TF-IDF features
-        """
-        if not self.is_fitted:
-            raise ValueError("Vectorizer must be fitted before transforming.")
-        
-        X = self.vectorizer.transform(texts)
-        return X
-    
-    def fit_transform(self, texts):
-        """
-        Fit vectorizer and transform texts in one step
-        
-        Args:
-            texts (list or array): List of text strings
-        
-        Returns:
-            scipy.sparse matrix: TF-IDF features
-        """
-        X = self.vectorizer.fit_transform(texts)
-        self.is_fitted = True
-        self.vocab_size = len(self.vectorizer.get_feature_names_out())
-        return X
-    
-    def get_feature_names(self):
-        """
-        Get vocabulary (list of words/n-grams used as features)
-        
-        Returns:
-            array: Feature names
-        """
-        if not self.is_fitted:
-            raise ValueError("Vectorizer must be fitted first")
-        return self.vectorizer.get_feature_names_out()
-    
-    # pkl save/load (kept for backward compatibility / debugging)
-
-    def save(self, filepath):
-        """
-        Save vectorizer to pickle file.
-
-        Args:
-            filepath (str): Path to save file
-        """
-        if not self.is_fitted:
-            raise ValueError("Cannot save unfitted vectorizer")
-
-        directory = os.path.dirname(filepath)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-
-        with open(filepath, 'wb') as f:
-            pickle.dump(self.vectorizer, f)
-
-        print(f" Vectorizer saved to {filepath}")
-
-    @classmethod
-    def load(cls, filepath):
-        """
-        Load vectorizer from pickle file.
-
-        Args:
-            filepath (str): Path to pickle file
-
-        Returns:
-            TextVectorizer: Loaded vectorizer instance
-        """
-        with open(filepath, 'rb') as f:
-            vectorizer = pickle.load(f)
-
-        instance = cls()
-        instance.vectorizer = vectorizer
-        instance.is_fitted = True
-        instance.vocab_size = len(vectorizer.get_feature_names_out())
-        return instance
-
-# ONNX export  — combines vectorizer + classifier into one deployable model
-
-def export_pipeline_onnx(vectorizer_wrapper, classifier, filepath, target_opset=17):
+        return {
+            "input_ids": encoding["input_ids"].squeeze(0), # (max_length,)
+            "attention_mask": encoding["attention_mask"].squeeze(0),  # (max_length,)
+            "label": torch.tensor(self.labels[idx], dtype=torch.long),
+        }
+# Model
+class StressClassifier(nn.Module):
     """
-    Export the full TF-IDF + classifier pipeline as a single ONNX model.
+    S-BERT encoder + lightweight classification head.
 
-    The exported model accepts raw text strings as input (shape [N, 1]) and
-    returns predicted class labels directly, so Android only needs one file
-    and zero pre-processing code.
+    Freezing strategy
+    1. Call freeze_encoder() - all encoder params frozen, only head trains.
+    2. Call unfreeze_top_layers(n) - top-n transformer layers unfrozen for
+       fine-tuning
+    """
 
-    Args:
-        vectorizer_wrapper (TextVectorizer): Fitted TextVectorizer instance.
-        classifier: Fitted sklearn classifier (e.g. LogisticRegression).
-        filepath (str): Output path for the .onnx file.
-        target_opset (int): ONNX opset version (default: 17).
+    def __init__(
+        self,
+        model_name: str = SBERT_MODEL_NAME,
+        num_classes: int = NUM_CLASSES,
+        hidden_dim: int = 256,
+        dropout: float = 0.3,
+        attn_implementation: str = "eager",
+    ):
+        super().__init__()
+        # "eager" is required for TorchScript-based ONNX tracing; SDPA's
+        # dynamic masking code is not JIT-traceable.  For inference/export
+        # the speed difference on a small model like MiniLM is negligible.
+        self.encoder = AutoModel.from_pretrained(
+            model_name, attn_implementation=attn_implementation
+        )
+        self.classifier = nn.Sequential(
+            nn.Linear(EMBED_DIM, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, num_classes),
+        )
+    # Forward
+    @staticmethod
+    def _mean_pool(token_embeddings: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        """
+        Mean-pool token embeddings, ignoring padding tokens.
+        token_embeddings : (batch, seq_len, hidden)
+        attention_mask : (batch, seq_len)
+        returns : (batch, hidden)
+        """
+        mask = attention_mask.unsqueeze(-1).float() # (B, S, 1)
+        summed = torch.sum(token_embeddings * mask, dim=1) # (B, H)
+        count = torch.clamp(mask.sum(dim=1), min=1e-9) # (B, 1)
+        return summed / count
+
+    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            input_ids : (batch, seq_len) - token IDs
+            attention_mask : (batch, seq_len) - 1 for real tokens, 0 for padding
+        Returns:
+            logits : (batch, num_classes)
+        """
+        outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
+        embeddings = self._mean_pool(outputs.last_hidden_state, attention_mask)
+        return self.classifier(embeddings)
+
+    # Freezing helpers
+    def freeze_encoder(self):
+        """Freeze all S-BERT parameters. Only the classifier head will train."""
+        for param in self.encoder.parameters():
+            param.requires_grad = False
+
+    def unfreeze_top_layers(self, n: int = 3):
+        """
+        Unfreeze the top-n transformer encoder layers for fine-tuning.
+        The bottom layers (generic syntax/grammar) stay frozen.
+        """
+        for layer in self.encoder.encoder.layer[-n:]:
+            for param in layer.parameters():
+                param.requires_grad = True
+
+    def trainable_param_count(self) -> dict:
+        """Return counts of trainable vs frozen parameters."""
+        trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        total = sum(p.numel() for p in self.parameters())
+        return {"trainable": trainable, "frozen": total - trainable, "total": total}
+
+# Data loading
+
+def load_data(csv_path: str):
+    """
+    Load the fixed training CSV.
 
     Returns:
-        str: Resolved output filepath.
+        texts (list[str]) : raw text strings
+        labels (list[int]) : stress levels 1-5
     """
-    if not vectorizer_wrapper.is_fitted:
-        raise ValueError("Vectorizer must be fitted before exporting.")
+    df = pd.read_csv(csv_path)
+    df["label"] = df["label"].astype(int)
+    if not set(df["label"].unique()).issubset({1, 2, 3, 4, 5}):
+        raise ValueError(f"Unexpected label values: {df['label'].unique()}")
+    return df["text"].tolist(), df["label"].tolist()
 
-    # Combine both steps — skl2onnx handles TfidfVectorizer natively
-    pipeline = Pipeline([
-        ('tfidf', vectorizer_wrapper.vectorizer),
-        ('clf',   classifier),
-    ])
-
-    # Input: batch of raw strings, shape [batch_size, 1]
-    initial_type = [('string_input', StringTensorType([None, 1]))]
-
-    onnx_model = convert_sklearn(
-        pipeline,
-        initial_types=initial_type,
-        target_opset=target_opset,
-        options={id(classifier): {'zipmap': False}},  # plain int labels, not dicts
-    )
-
-    directory = os.path.dirname(filepath)
-    if directory:
-        os.makedirs(directory, exist_ok=True)
-
-    with open(filepath, 'wb') as f:
-        f.write(onnx_model.SerializeToString())
-
-    size_kb = os.path.getsize(filepath) / 1024
-    print(f" Pipeline ONNX model saved to {filepath}  ({size_kb:.1f} KB)")
-    return filepath
-
-
-# -----------------------------------------------------------------------------
-# ONNX inference helpers  (used by test.py and any future inference code)
-# -----------------------------------------------------------------------------
-
-def load_onnx_session(filepath):
+# Device selection
+def get_device() -> torch.device:
     """
-    Load an ONNX inference session.
-
-    Args:
-        filepath (str): Path to .onnx file.
-
-    Returns:
-        onnxruntime.InferenceSession
+    Pick the best available device.
     """
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"ONNX model not found: {filepath}")
-    return ort.InferenceSession(filepath)
-
-
-def predict_onnx(session, texts):
-    """
-    Run inference using a loaded ONNX session.
-
-    Args:
-        session (onnxruntime.InferenceSession): Loaded ONNX session.
-        texts (list[str]): Raw text strings to classify.
-
-    Returns:
-        np.ndarray: Predicted class labels (int), shape [N].
-    """
-    import numpy as np
-
-    input_name = session.get_inputs()[0].name
-    # ONNX TF-IDF expects shape [N, 1] — one document per row
-    input_array = np.array(texts, dtype=object).reshape(-1, 1)
-    outputs = session.run(None, {input_name: input_array})
-    return outputs[0]
-
-
-def load_training_data(filepath):
-    """
-    Load training data from CSV file
-    
-    Args:
-        filepath (str): Path to training_data.csv
-    
-    Returns:
-        texts (array): Text strings
-        labels (array): Numeric labels
-    """
-    df = pd.read_csv(filepath)
-    
-    return df['text'].values, df['label'].values
-
-
-def create_vectorizer(data_path, save_path, max_features=2000, ngram_range=(1, 2), min_df=2):
-    """
-    Loads data, encode, and save 
-    Args:
-        data_path (str): Path to training_data.csv
-        save_path (str): Path to save vectorizer.pkl
-        max_features (int): Maximum vocabulary size
-        ngram_range (tuple): N-gram range
-        min_df (int): Minimum document frequency
-    
-    Returns:
-        TextVectorizer: Fitted vectorizer instance
-    """
-
-    # Load data
-    texts, labels = load_training_data(data_path)
-    
-    # Show label distribution
-    unique, counts = pd.Series(labels).value_counts().sort_index().index, pd.Series(labels).value_counts().sort_index().values
-    for level, count in zip(unique, counts):
-        print(f"Level {level}: {count} examples")
-    print()
-    
-    # Create and fit vectorizer
-    print(f"max_features: {max_features}")
-    print(f"ngram_range: {ngram_range}")
-    print(f"min_df: {min_df}")
-    print()
-    
-    vectorizer = TextVectorizer(
-        max_features=max_features,
-        ngram_range=ngram_range,
-        min_df=min_df
-    )
-    
-    X = vectorizer.fit_transform(texts)
-    
-    print(f"Vocabulary size: {vectorizer.vocab_size}")
-    print(f"Feature matrix shape: {X.shape}")
-    print(f"Sparsity: {X.nnz}/{X.shape[0]*X.shape[1]} non-zero ({X.nnz/(X.shape[0]*X.shape[1])*100:.2f}%)")
-    print()
-    
-    # Show sample vocabulary
-    vocab = vectorizer.get_feature_names()
-    print("Sample vocabulary (first 20 features):")
-    for i, word in enumerate(vocab[:20]):
-        print(f"  {i+1:2d}. {word}")
-    print(f"({len(vocab)-20} more features)")
-    print()
-    
-    # Save
-    vectorizer.save(save_path)
-    
-    return vectorizer
-
-
-# When run directly, create the vectorizer
-if __name__ == "__main__":
-    create_vectorizer(
-        data_path='data/processed/training_data.csv',
-        save_path='models/vectorizer_v1.pkl',
-        max_features=2000,
-        ngram_range=(1, 2),
-        min_df=2
-    )
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        name = torch.cuda.get_device_name(0)
+        vram = torch.cuda.get_device_properties(0).total_memory / 1024**3
+        print(f"Device : {name} ({vram:.1f} GB VRAM)")
+    else:
+        device = torch.device("cpu")
+        print("Device : CPU (no CUDA found)")
+    return device
