@@ -47,11 +47,21 @@ def predict(text: str, session: ort.InferenceSession, tokenizer) -> dict:
 
     level = int(np.argmax(scores)) + 1  # 1-indexed
 
+<<<<<<< HEAD
     return {
         "level": level,
         "confidence":  round(scores[level - 1], 4),
         "scores": [round(s, 4) for s in scores],
     }
+=======
+    # Predict — raw strings go straight to the model, no separate vectorizer step
+    predictions = predict_onnx(session, test_cases)
+
+    print(f"{'Test Sentence':<85} | {'Predicted Level'}")
+    for text, pred in zip(test_cases, predictions):
+        display_text = (text[:80] + '..') if len(text) > 80 else text
+        print(f"{display_text:<85} | {pred}")
+>>>>>>> 9e1f1a759f3cb1c67918c84fe3d92fb015045273
 
 
 if __name__ == "__main__":
