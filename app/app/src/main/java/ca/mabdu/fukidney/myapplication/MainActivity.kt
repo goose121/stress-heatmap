@@ -2,6 +2,7 @@ package ca.mabdu.fukidney.myapplication
 
 import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -138,42 +139,48 @@ class MainActivity : ComponentActivity() {
             // High accuracy is important for data quality
             val priority = Priority.PRIORITY_HIGH_ACCURACY
 
-            val location = locationClient.getCurrentLocation(
-                priority,
-                CancellationTokenSource().token,
-            ).await()
-
-            if (location == null) {
-                runOnUiThread {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Location fetch failed",
-                        Toast.LENGTH_SHORT)
-                        .show()
-                    Log.e("MainActivity", "Error fetching location")
-                }
-                return@launch
-            }
-
             try {
-                NetworkHandler.sendClassification(
-                    cl = ClassificationModel.classify(
-                        data
-                    )!!,
-                    location,
-                    ctx = ctx,
-                )
-            } catch (e: Exception) {
-                runOnUiThread {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Network error",
-                        Toast.LENGTH_SHORT)
-                        .show()
-                    Log.e("MainActivity", "Error sending network data: ", e)
+                val location = locationClient.getCurrentLocation(
+                    priority,
+                    CancellationTokenSource().token,
+                ).await()
+
+                if (location == null) {
+                    runOnUiThread {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Location fetch failed",
+                            Toast.LENGTH_SHORT
+                        )
+                            .show()
+                        Log.e("MainActivity", "Error fetching location")
+                    }
+                    return@launch
                 }
-            } finally {
-                networkState.value = NetworkState.IDLE
+
+                try {
+                    NetworkHandler.sendClassification(
+                        cl = ClassificationModel.classify(
+                            data
+                        )!!,
+                        location,
+                        ctx = ctx,
+                    )
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Network error",
+                            Toast.LENGTH_SHORT
+                        )
+                            .show()
+                        Log.e("MainActivity", "Error sending network data: ", e)
+                    }
+                } finally {
+                    networkState.value = NetworkState.IDLE
+                }
+            } catch (e: SecurityException) {
+                Toast.makeText(this@MainActivity, "Location permission is required to submit", Toast.LENGTH_SHORT).show()
             }
         }
     }
