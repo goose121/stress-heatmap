@@ -6,10 +6,10 @@
 const { DeckGL, HeatmapLayer } = deck;
 
 const MRU_BOUNDS = {
-    minLng: -114.1380,
-    minLat: 51.0070,
-    maxLng: -114.1220,
-    maxLat: 51.0160
+    minLng: -114.1410438541962,
+    minLat: 51.006873208803576,
+    maxLng: -114.11845117560004,
+    maxLat: 51.01637355900997
 };
 
 const CONFIG = {
@@ -31,6 +31,7 @@ const CONFIG = {
 
 let stressData = [];
 let deckInstance = null;
+let departmentOptionsSignature = '';
 const stressRange = {
     min: 1,
     max: 5
@@ -39,29 +40,20 @@ const dateRange = {
     start: null,
     end: null
 };
+const categoryFilters = {
+    program: ''
+};
+let hasInitializedDateRange = false;
 
 /**
- * parseRecordTimestamp - Parses API datetime values into epoch milliseconds
+ * parseWeekOfTimestamp - Parses display.week_of (YYYY-MM-DD) into epoch milliseconds
  */
-function parseRecordTimestamp(datetimeValue) {
-    if (!datetimeValue) return null;
+function parseWeekOfTimestamp(weekOfValue) {
+    if (!weekOfValue) return null;
 
-    const raw = String(datetimeValue).trim();
-    const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
-    const parsed = Date.parse(normalized);
-
+    const raw = String(weekOfValue).trim();
+    const parsed = Date.parse(`${raw}T00:00:00`);
     return Number.isNaN(parsed) ? null : parsed;
-}
-
-/**
- * toDateInputValue - Converts a timestamp to YYYY-MM-DD for date inputs
- */
-function toDateInputValue(timestamp) {
-    const date = new Date(timestamp);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
 }
 
 /**
@@ -83,11 +75,53 @@ function parseDateEnd(value) {
 }
 
 /**
+ * toLocalDateInputValue - Converts Date to YYYY-MM-DD using local timezone date parts
+ */
+function toLocalDateInputValue(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+/**
+ * getStartOfWeek - Returns local Sunday 00:00 for the provided date
+ */
+function getStartOfWeek(date) {
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    const day = start.getDay();
+    start.setDate(start.getDate() - day);
+    return start;
+}
+
+/**
+ * clampDateToDataBounds - Clamps date to available fetched data bounds
+ */
+function clampDateToDataBounds(date, minTimestamp, maxTimestamp) {
+    const minDate = new Date(minTimestamp);
+    const maxDate = new Date(maxTimestamp);
+    if (date < minDate) return minDate;
+    if (date > maxDate) return maxDate;
+    return date;
+}
+
+/**
  * matchesFilters - Returns true when a record passes stress and date filters
  */
 function matchesFilters(record) {
     const inStressRange = record.stress_level >= stressRange.min && record.stress_level <= stressRange.max;
     if (!inStressRange) return false;
+
+    if (categoryFilters.program) {
+        if (categoryFilters.program.startsWith('faculty:')) {
+            const selectedFaculty = categoryFilters.program.slice('faculty:'.length);
+            if (record.faculty !== selectedFaculty) return false;
+        } else if (categoryFilters.program.startsWith('department:')) {
+            const selectedDepartment = categoryFilters.program.slice('department:'.length);
+            if (record.department !== selectedDepartment) return false;
+        }
+    }
 
     if (dateRange.start === null && dateRange.end === null) return true;
     if (record.timestamp === null) return false;
@@ -170,9 +204,8 @@ function constrainViewState(viewState) {
 /**
  * createHeatmapLayer - Creates heatmap layer using Gaussian kernel density estimation
  */
-function createHeatmapLayer() {
-    const filteredData = getFilteredData();
-    const averagedData = aggregateOverlappingPoints(filteredData);
+function createHeatmapLayer(records = getFilteredData()) {
+    const averagedData = aggregateOverlappingPoints(records);
 
     return new HeatmapLayer({
         id: 'stress-heatmap',
@@ -222,15 +255,14 @@ function initMap() {
 }
 
 /**
- * updateHeatmap - Refresh heatmap with current data
+ * applyFiltersAndRender - Runs filtering once per UI action and updates map + count
  */
-function updateHeatmap() {
-    if (!deckInstance) return;
-
-    const filteredCount = getFilteredData().length;
-
-    console.log('Updating heatmap with', filteredCount, 'filtered data points');
-    deckInstance.setProps({ layers: [createHeatmapLayer()] });
+function applyFiltersAndRender() {
+    const filteredData = getFilteredData();
+    if (deckInstance) {
+        deckInstance.setProps({ layers: [createHeatmapLayer(filteredData)] });
+    }
+    document.getElementById('data-count').textContent = `${filteredData.length} / ${stressData.length}`;
 }
 
 /**
@@ -251,12 +283,87 @@ function updateRangeSelectionBar() {
     rightMask.style.right = '0%';
 }
 
-/**
- * updateVisibleCount - Shows filtered point count with total
- */
-function updateVisibleCount() {
-    const filteredCount = getFilteredData().length;
-    document.getElementById('data-count').textContent = `${filteredCount} / ${stressData.length}`;
+function refreshCategoryFilterOptions() {
+    const departmentSelect = document.getElementById('filter-department');
+    if (!departmentSelect) return;
+
+    const groupedDepartments = new Map();
+
+    stressData.forEach((record) => {
+        if (!record.faculty || !record.department) return;
+        if (!groupedDepartments.has(record.faculty)) {
+            groupedDepartments.set(record.faculty, new Set());
+        }
+        groupedDepartments.get(record.faculty).add(record.department);
+    });
+
+    const facultyNames = Array.from(groupedDepartments.keys()).sort((a, b) => a.localeCompare(b));
+    const nextSignature = facultyNames
+        .map((faculty) => `${faculty}:${Array.from(groupedDepartments.get(faculty)).sort((a, b) => a.localeCompare(b)).join('|')}`)
+        .join('||');
+
+    if (nextSignature === departmentOptionsSignature) {
+        return;
+    }
+
+    departmentOptionsSignature = nextSignature;
+
+    const previous = departmentSelect.value;
+    departmentSelect.innerHTML = '';
+
+    const allOption = document.createElement('option');
+    allOption.value = '';
+    allOption.textContent = 'All Faculties and Departments';
+    departmentSelect.appendChild(allOption);
+
+    facultyNames.forEach((faculty) => {
+        const facultyOption = document.createElement('option');
+        facultyOption.value = `faculty:${faculty}`;
+        facultyOption.textContent = `Faculty: ${faculty}`;
+        departmentSelect.appendChild(facultyOption);
+    });
+
+    facultyNames.forEach((faculty) => {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = `${faculty} Departments`;
+
+        Array.from(groupedDepartments.get(faculty)).sort((a, b) => a.localeCompare(b)).forEach((department) => {
+            const option = document.createElement('option');
+            option.value = `department:${department}`;
+            option.textContent = department;
+            optgroup.appendChild(option);
+        });
+
+        departmentSelect.appendChild(optgroup);
+    });
+
+    const availableValues = [''];
+
+    facultyNames.forEach((faculty) => {
+        availableValues.push(`faculty:${faculty}`);
+        Array.from(groupedDepartments.get(faculty)).forEach((department) => {
+            availableValues.push(`department:${department}`);
+        });
+    });
+
+    if (availableValues.includes(previous)) {
+        departmentSelect.value = previous;
+    }
+
+    if (categoryFilters.program && !availableValues.includes(categoryFilters.program)) {
+        categoryFilters.program = '';
+        departmentSelect.value = '';
+    }
+}
+
+function initCategoryFilters() {
+    const departmentSelect = document.getElementById('filter-department');
+    if (!departmentSelect) return;
+
+    departmentSelect.addEventListener('change', () => {
+        categoryFilters.program = departmentSelect.value;
+        applyFiltersAndRender();
+    });
 }
 
 /**
@@ -265,9 +372,12 @@ function updateVisibleCount() {
 function initDateRangeControls() {
     const startInput = document.getElementById('date-start');
     const endInput = document.getElementById('date-end');
-    const resetButton = document.getElementById('date-reset');
+    const clearButton = document.getElementById('date-preset-clear');
+    const thisWeekButton = document.getElementById('date-preset-this-week');
+    const thisMonthButton = document.getElementById('date-preset-this-month');
+    const lastMonthButton = document.getElementById('date-preset-last-month');
 
-    if (!startInput || !endInput || !resetButton) return;
+    if (!startInput || !endInput || !clearButton) return;
 
     const applyDateFilter = () => {
         dateRange.start = parseDateStart(startInput.value);
@@ -278,20 +388,67 @@ function initDateRangeControls() {
             endInput.value = startInput.value;
         }
 
-        updateVisibleCount();
-        updateHeatmap();
+        applyFiltersAndRender();
     };
 
     startInput.addEventListener('change', applyDateFilter);
     endInput.addEventListener('change', applyDateFilter);
 
-    resetButton.addEventListener('click', () => {
+    const applyPresetRange = (startDate, endDate) => {
+        const timestamps = stressData
+            .map((record) => record.timestamp)
+            .filter((timestamp) => timestamp !== null);
+
+        if (timestamps.length > 0) {
+            const minTimestamp = Math.min(...timestamps);
+            const maxTimestamp = Math.max(...timestamps);
+            const clampedStart = clampDateToDataBounds(startDate, minTimestamp, maxTimestamp);
+            const clampedEnd = clampDateToDataBounds(endDate, minTimestamp, maxTimestamp);
+
+            startInput.value = toLocalDateInputValue(clampedStart);
+            endInput.value = toLocalDateInputValue(clampedEnd < clampedStart ? clampedStart : clampedEnd);
+        } else {
+            startInput.value = toLocalDateInputValue(startDate);
+            endInput.value = toLocalDateInputValue(endDate);
+        }
+
+        applyDateFilter();
+    };
+
+    if (thisWeekButton) {
+        thisWeekButton.addEventListener('click', () => {
+            const now = new Date();
+            const weekStart = getStartOfWeek(now);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+            applyPresetRange(weekStart, weekEnd);
+        });
+    }
+
+    if (thisMonthButton) {
+        thisMonthButton.addEventListener('click', () => {
+            const now = new Date();
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            applyPresetRange(monthStart, monthEnd);
+        });
+    }
+
+    if (lastMonthButton) {
+        lastMonthButton.addEventListener('click', () => {
+            const now = new Date();
+            const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+            applyPresetRange(lastMonthStart, lastMonthEnd);
+        });
+    }
+
+    clearButton.addEventListener('click', () => {
         startInput.value = '';
         endInput.value = '';
         dateRange.start = null;
         dateRange.end = null;
-        updateVisibleCount();
-        updateHeatmap();
+        applyFiltersAndRender();
     });
 }
 
@@ -303,6 +460,17 @@ function updateDateFilterBounds() {
     const endInput = document.getElementById('date-end');
     if (!startInput || !endInput) return;
 
+    const setCurrentWeekRange = () => {
+        const now = new Date();
+        const weekStart = getStartOfWeek(now);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        startInput.value = toLocalDateInputValue(weekStart);
+        endInput.value = toLocalDateInputValue(weekEnd);
+        dateRange.start = parseDateStart(startInput.value);
+        dateRange.end = parseDateEnd(endInput.value);
+    };
+
     const timestamps = stressData
         .map((record) => record.timestamp)
         .filter((timestamp) => timestamp !== null);
@@ -312,16 +480,39 @@ function updateDateFilterBounds() {
         startInput.max = '';
         endInput.min = '';
         endInput.max = '';
+
+        if (!hasInitializedDateRange) {
+            setCurrentWeekRange();
+            hasInitializedDateRange = true;
+        }
         return;
     }
 
-    const minDate = toDateInputValue(Math.min(...timestamps));
-    const maxDate = toDateInputValue(Math.max(...timestamps));
+    const minDate = toLocalDateInputValue(new Date(Math.min(...timestamps)));
+    const maxDate = toLocalDateInputValue(new Date(Math.max(...timestamps)));
+    const minTimestamp = Math.min(...timestamps);
+    const maxTimestamp = Math.max(...timestamps);
 
     startInput.min = minDate;
     startInput.max = maxDate;
     endInput.min = minDate;
     endInput.max = maxDate;
+
+    if (!hasInitializedDateRange) {
+        const now = new Date();
+        const weekStart = getStartOfWeek(now);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+
+        const clampedStart = clampDateToDataBounds(weekStart, minTimestamp, maxTimestamp);
+        const clampedEnd = clampDateToDataBounds(weekEnd, minTimestamp, maxTimestamp);
+
+        startInput.value = toLocalDateInputValue(clampedStart);
+        endInput.value = toLocalDateInputValue(clampedEnd < clampedStart ? clampedStart : clampedEnd);
+        dateRange.start = parseDateStart(startInput.value);
+        dateRange.end = parseDateEnd(endInput.value);
+        hasInitializedDateRange = true;
+    }
 }
 
 /**
@@ -342,8 +533,7 @@ function initStressRangeControls() {
         }
 
         updateRangeSelectionBar();
-        updateVisibleCount();
-        updateHeatmap();
+        applyFiltersAndRender();
     });
 
     maxSlider.addEventListener('input', () => {
@@ -355,8 +545,7 @@ function initStressRangeControls() {
         }
 
         updateRangeSelectionBar();
-        updateVisibleCount();
-        updateHeatmap();
+        applyFiltersAndRender();
     });
 
     updateRangeSelectionBar();
@@ -371,15 +560,14 @@ async function fetchStressData() {
         if (!response.ok) throw new Error('HTTP error status: ' + response.status);
         
         const data = await response.json();
-        console.log('Received', data.length, 'records');
         
         stressData = data.map((record) => ({
             ...record,
-            timestamp: parseRecordTimestamp(record.datetime)
+            timestamp: parseWeekOfTimestamp(record.week_of)
         }));
+        refreshCategoryFilterOptions();
         updateDateFilterBounds();
-        updateHeatmap();
-        updateVisibleCount();
+        applyFiltersAndRender();
         
     } catch (error) {
         console.error('Error fetching stress data:', error);
@@ -400,6 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initSidebarToggle();
     initStressRangeControls();
     initDateRangeControls();
+    initCategoryFilters();
     initMap();
     startPolling();
 });

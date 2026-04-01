@@ -5,53 +5,191 @@
 
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
 const dbFilePath = path.join(__dirname, 'data.sqlite');
 
+if (fs.existsSync(dbFilePath)) {
+    try {
+        fs.unlinkSync(dbFilePath);
+    } catch (error) {
+        if (error.code !== 'EBUSY' && error.code !== 'EPERM') {
+            throw error;
+        }
+
+        console.warn('data.sqlite is in use; seeding in-place without file recreation.');
+    }
+}
+
 const MRU_CAMPUS_POLYGON = [
-    [-114.1376, 51.0073],
-    [-114.1350, 51.0070],
-    [-114.1326, 51.0072],
-    [-114.1293, 51.0078],
-    [-114.1269, 51.0083],
-    [-114.1246, 51.0098],
-    [-114.1230, 51.0116],
-    [-114.1224, 51.0136],
-    [-114.1233, 51.0150],
-    [-114.1264, 51.0158],
-    [-114.1302, 51.0159],
-    [-114.1336, 51.0154],
-    [-114.1362, 51.0145],
-    [-114.1378, 51.0128],
-    [-114.1380, 51.0105],
-    [-114.1376, 51.0073]
+    [-114.13236048415135, 51.015601290115555],
+    [-114.12291537273408, 51.01228879720036],
+    [-114.12356570719953, 51.01182553528292],
+    [-114.12730806536716, 51.01106093048902],
+    [-114.12863221207917, 51.010639016879075],
+    [-114.1293741097477, 51.010010293965635],
+    [-114.13499620859784, 51.00791230857671],
+    [-114.13729462624703, 51.00945214674479],
+    [-114.13720000276643, 51.0113932209571],
+    [-114.13641114214886, 51.011892595450576],
+    [-114.13740498223731, 51.012567090761245],
+    [-114.13402403375976, 51.0149920570997],
+    [-114.13288616195481, 51.01545876123327]
 ];
+
+const DEPARTMENT_TO_FACULTY = {
+    'Economics, Justice, and Policy Studies': 'Faculty of Arts',
+    'English, Languages, and Cultures': 'Faculty of Arts',
+    'Humanities': 'Faculty of Arts',
+    'Interior Design': 'Faculty of Arts',
+    'Psychology': 'Faculty of Arts',
+    'Sociology and Anthropology': 'Faculty of Arts',
+
+    'Communication Studies and Aviation': 'Bissett School of Business',
+    'Accounting': 'Bissett School of Business',
+    'Aviation': 'Bissett School of Business',
+    'Aviation Management': 'Bissett School of Business',
+    'Finance': 'Bissett School of Business',
+    'General Management': 'Bissett School of Business',
+    'Human Resources': 'Bissett School of Business',
+    'Innovation & Entrepreneurship': 'Bissett School of Business',
+    'International Business': 'Bissett School of Business',
+    'Marketing': 'Bissett School of Business',
+    'Social Innovation': 'Bissett School of Business',
+    'Supply Chain Management': 'Bissett School of Business',
+
+    'Broadcast Media Studies': 'School of Communication Studies',
+    'Information Design': 'School of Communication Studies',
+    'Journalism and Digital Media': 'School of Communication Studies',
+    'Public Relations': 'School of Communication Studies',
+
+    'Professional and Continuing Studies': 'Faculty of Continuing Education',
+    'The Conservatory': 'Faculty of Continuing Education',
+    'Occupational programs': 'Faculty of Continuing Education',
+    'Academic Upgrading': 'Faculty of Continuing Education',
+    'Transitional Vocational Programs': 'Faculty of Continuing Education',
+    'Inclusive Post-Secondary Education': 'Faculty of Continuing Education',
+
+    'Child Studies and Social Work': 'Faculty of Health, Community and Education',
+    'Education': 'Faculty of Health, Community and Education',
+    'Health and Physical Education': 'Faculty of Health, Community and Education',
+    'School of Nursing and Midwifery': 'Faculty of Health, Community and Education',
+
+    'Biology': 'Faculty of Science and Technology',
+    'Chemistry and Physics': 'Faculty of Science and Technology',
+    'Earth and Environmental Sciences': 'Faculty of Science and Technology',
+    'Mathematics and Computing': 'Faculty of Science and Technology'
+};
+
+const DEPARTMENTS = Object.keys(DEPARTMENT_TO_FACULTY);
+const DEPARTMENT_FACULTY_CASE_SQL = DEPARTMENTS.map((department) => {
+    const faculty = DEPARTMENT_TO_FACULTY[department];
+    return `WHEN '${department.replace(/'/g, "''")}' THEN '${faculty.replace(/'/g, "''")}'`;
+}).join('\n                ');
 
 const db = new Database(dbFilePath);
 
 console.log('Setting up data.sqlite\n');
 
-/**
- * Create stress_reports table
- */
 db.exec(`
+    DROP TABLE IF EXISTS display;
     DROP TABLE IF EXISTS stress_reports;
 
     CREATE TABLE stress_reports (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
         ip_address TEXT NOT NULL,
         stress_level INTEGER NOT NULL CHECK(stress_level BETWEEN 1 AND 5),
         longitude REAL NOT NULL,
         latitude REAL NOT NULL,
         datetime TEXT NOT NULL DEFAULT (datetime('now')),
-        week_start TEXT NOT NULL
+        department TEXT NOT NULL,
+        PRIMARY KEY (ip_address)
     );
 
-    CREATE UNIQUE INDEX idx_stress_reports_ip_week
-    ON stress_reports (ip_address, week_start)
-`);
+    CREATE INDEX idx_stress_reports_datetime
+    ON stress_reports (datetime);
 
-console.log('Table created/verified');
+    CREATE TABLE display (
+        ip_address TEXT PRIMARY KEY,
+        stress_level INTEGER NOT NULL CHECK(stress_level BETWEEN 1 AND 5),
+        longitude REAL NOT NULL,
+        latitude REAL NOT NULL,
+        week_of TEXT NOT NULL,
+        department TEXT NOT NULL,
+        faculty TEXT NOT NULL CHECK(faculty IN (
+            'Bissett School of Business',
+            'Faculty of Arts',
+            'Faculty of Continuing Education',
+            'Faculty of Health, Community and Education',
+            'Faculty of Science and Technology',
+            'School of Communication Studies'
+        ))
+    );
+
+    CREATE INDEX idx_display_week_of
+    ON display (week_of);
+
+    CREATE INDEX idx_display_department
+    ON display (department);
+
+    CREATE TRIGGER trg_stress_reports_ai
+    AFTER INSERT ON stress_reports
+    BEGIN
+        INSERT INTO display (ip_address, stress_level, longitude, latitude, week_of, department, faculty)
+        VALUES (
+            NEW.ip_address,
+            NEW.stress_level,
+            NEW.longitude,
+            NEW.latitude,
+            date(NEW.datetime, '-' || strftime('%w', NEW.datetime) || ' days'),
+            NEW.department,
+            CASE NEW.department
+                ${DEPARTMENT_FACULTY_CASE_SQL}
+                ELSE 'Unknown'
+            END
+        )
+        ON CONFLICT(ip_address)
+        DO UPDATE SET
+            stress_level = excluded.stress_level,
+            longitude = excluded.longitude,
+            latitude = excluded.latitude,
+            department = excluded.department,
+            week_of = excluded.week_of,
+            faculty = excluded.faculty;
+    END;
+
+    CREATE TRIGGER trg_stress_reports_au
+    AFTER UPDATE ON stress_reports
+    BEGIN
+        INSERT INTO display (ip_address, stress_level, longitude, latitude, week_of, department, faculty)
+        VALUES (
+            NEW.ip_address,
+            NEW.stress_level,
+            NEW.longitude,
+            NEW.latitude,
+            date(NEW.datetime, '-' || strftime('%w', NEW.datetime) || ' days'),
+            NEW.department,
+            CASE NEW.department
+                ${DEPARTMENT_FACULTY_CASE_SQL}
+                ELSE 'Unknown'
+            END
+        )
+        ON CONFLICT(ip_address)
+        DO UPDATE SET
+            stress_level = excluded.stress_level,
+            longitude = excluded.longitude,
+            latitude = excluded.latitude,
+            department = excluded.department,
+            week_of = excluded.week_of,
+            faculty = excluded.faculty;
+    END;
+
+    CREATE TRIGGER trg_stress_reports_ad
+    AFTER DELETE ON stress_reports
+    BEGIN
+        DELETE FROM display
+        WHERE ip_address = OLD.ip_address;
+    END;
+`);
 
 /**
  * toSqliteUtcDatetime - Converts Date to SQLite UTC datetime format.
@@ -60,24 +198,8 @@ function toSqliteUtcDatetime(date) {
     return date.toISOString().slice(0, 19).replace('T', ' ');
 }
 
-/**
- * getWeekStartUtcDate - Returns YYYY-MM-DD for Monday of the datetime week in UTC.
- */
-function getWeekStartUtcDate(date) {
-    const utc = new Date(Date.UTC(
-        date.getUTCFullYear(),
-        date.getUTCMonth(),
-        date.getUTCDate(),
-        0,
-        0,
-        0,
-        0
-    ));
-
-    const day = utc.getUTCDay();
-    const diffToMonday = day === 0 ? -6 : 1 - day;
-    utc.setUTCDate(utc.getUTCDate() + diffToMonday);
-    return utc.toISOString().slice(0, 10);
+function randomDepartment() {
+    return DEPARTMENTS[Math.floor(Math.random() * DEPARTMENTS.length)];
 }
 
 /**
@@ -105,10 +227,10 @@ function isPointInPolygon(longitude, latitude, polygon) {
  * randomCampusCoordinate - Returns a random [lng, lat] inside MRU campus polygon.
  */
 function randomCampusCoordinate() {
-    const minLng = -114.1380;
-    const maxLng = -114.1220;
-    const minLat = 51.0070;
-    const maxLat = 51.0160;
+    const minLng = -114.1412;
+    const maxLng = -114.1226;
+    const minLat = 51.0079;
+    const maxLat = 51.0158;
 
     for (let attempts = 0; attempts < 300; attempts++) {
         const longitude = minLng + Math.random() * (maxLng - minLng);
@@ -153,13 +275,13 @@ function generateHotspots(startDate, endDate) {
     const hotspots = [];
     
     const hotspotLocations = [
-        { lng: -114.1285, lat: 51.0118, name: 'Library', stressBias: 1, count: 220 },
-        { lng: -114.1270, lat: 51.0130, name: 'Science Wing', stressBias: 1, count: 190 },
-        { lng: -114.1265, lat: 51.0128, name: 'Study Hall', stressBias: 1, count: 170 },
-        { lng: -114.1310, lat: 51.0105, name: 'Main Building', stressBias: 0, count: 130 },
-        { lng: -114.1295, lat: 51.0122, name: 'Student Center', stressBias: 0, count: 130 },
-        { lng: -114.1320, lat: 51.0140, name: 'Recreation Center', stressBias: -1, count: 90 },
-        { lng: -114.1340, lat: 51.0085, name: 'Campus Grounds', stressBias: -1, count: 70 }
+        { lng: -114.1285, lat: 51.0118, stressBias: 1, count: 220 },
+        { lng: -114.1270, lat: 51.0130, stressBias: 1, count: 190 },
+        { lng: -114.1265, lat: 51.0128, stressBias: 1, count: 170 },
+        { lng: -114.1310, lat: 51.0105, stressBias: 0, count: 130 },
+        { lng: -114.1295, lat: 51.0122, stressBias: 0, count: 130 },
+        { lng: -114.1320, lat: 51.0140, stressBias: -1, count: 90 },
+        { lng: -114.1340, lat: 51.0085, stressBias: -1, count: 70 }
     ];
     
     let ipCounter = 1000;
@@ -174,9 +296,9 @@ function generateHotspots(startDate, endDate) {
             const longitude = hotspot.lng + (Math.random() - 0.5) * 0.0015;
             const latitude = hotspot.lat + (Math.random() - 0.5) * 0.001;
             const datetime = toSqliteUtcDatetime(date);
-            const weekStart = getWeekStartUtcDate(date);
+            const department = randomDepartment();
 
-            hotspots.push([ip, stressLevel, longitude, latitude, datetime, weekStart]);
+            hotspots.push([ip, stressLevel, longitude, latitude, datetime, department]);
             ipCounter++;
         }
     });
@@ -196,9 +318,9 @@ function generateRandomDataPoints(count, startDate, endDate) {
         const stressLevel = stressFromDate(date, startDate, endDate);
         const [longitude, latitude] = randomCampusCoordinate();
         const datetime = toSqliteUtcDatetime(date);
-        const weekStart = getWeekStartUtcDate(date);
+        const department = randomDepartment();
 
-        data.push([ip, stressLevel, longitude, latitude, datetime, weekStart]);
+        data.push([ip, stressLevel, longitude, latitude, datetime, department]);
     }
     
     return data;
@@ -212,30 +334,31 @@ const randomData = generateRandomDataPoints(700, startDate, endDate);
 const testData = [...hotspotData, ...randomData];
 
 const stmt = db.prepare(`
-    INSERT INTO stress_reports (ip_address, stress_level, longitude, latitude, datetime, week_start)
+    INSERT INTO stress_reports (ip_address, stress_level, longitude, latitude, datetime, department)
     VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(ip_address, week_start)
+    ON CONFLICT(ip_address)
     DO UPDATE SET
         stress_level = excluded.stress_level,
         longitude = excluded.longitude,
         latitude = excluded.latitude,
-        datetime = excluded.datetime
+        datetime = excluded.datetime,
+        department = excluded.department
 `);
 
 testData.forEach(row => {
     stmt.run(row);
 });
 
-const rows = db.prepare('SELECT * FROM stress_reports ORDER BY stress_level DESC').all();
-console.log(`Total records in database: ${rows.length}`);
+const sourceCount = db.prepare('SELECT COUNT(*) AS count FROM stress_reports').get().count;
+console.log(`Total records in database: ${sourceCount}`);
+
+const displayCount = db.prepare('SELECT COUNT(*) AS count FROM display').get().count;
+console.log(`Total display rows in database: ${displayCount}`);
 
 const rangeCheck = db.prepare(`
     SELECT MIN(datetime) AS min_datetime, MAX(datetime) AS max_datetime
     FROM stress_reports
 `).get();
 console.log('Date range:', rangeCheck.min_datetime, 'to', rangeCheck.max_datetime);
-
-console.log('\nSample data (first 5 records):');
-console.table(rows.slice(0, 5));
 
 db.close();

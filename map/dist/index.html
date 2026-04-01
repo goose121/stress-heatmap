@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="MRU Heatmap" />
+    <link rel="manifest" href="/favicon/site.webmanifest" />
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MRU Student Stress Heatmap</title>
@@ -55,7 +62,34 @@
                     <label class="date-filter-label" for="date-end">To</label>
                     <input id="date-end" class="date-input" type="date" aria-label="End date">
                 </div>
-                <button id="date-reset" class="date-reset" type="button">Clear Date Filter</button>
+                <div class="date-preset-buttons" aria-label="Quick date presets">
+                    <button id="date-preset-this-week" class="date-preset icon-preset" type="button" title="This Week" aria-label="This Week">
+                        <span class="preset-icon">W</span>
+                        <span class="preset-label">Week</span>
+                    </button>
+                    <button id="date-preset-this-month" class="date-preset icon-preset" type="button" title="This Month" aria-label="This Month">
+                        <span class="preset-icon">M</span>
+                        <span class="preset-label">Month</span>
+                    </button>
+                    <button id="date-preset-last-month" class="date-preset icon-preset" type="button" title="Last Month" aria-label="Last Month">
+                        <span class="preset-icon">L</span>
+                        <span class="preset-label">Last</span>
+                    </button>
+                    <button id="date-preset-clear" class="date-preset icon-preset" type="button" title="Clear Date Filter" aria-label="Clear Date Filter">
+                        <span class="preset-icon">X</span>
+                        <span class="preset-label">Clear</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="legend">
+                <div class="legend-title">Department Filter</div>
+                <div class="date-filter-row">
+                    <label class="date-filter-label" for="filter-department">Program</label>
+                    <select id="filter-department" class="date-input" aria-label="Faculty and department filter">
+                        <option value="">All Faculties</option>
+                    </select>
+                </div>
             </div>
         </div>
     </aside>
