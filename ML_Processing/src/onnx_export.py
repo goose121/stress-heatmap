@@ -23,11 +23,11 @@ from text_encoding import StressClassifier, get_device, SBERT_MODEL_NAME
 from transformers import AutoTokenizer
 
 # Configuration
-BEST_MODEL_PATH = "models/Model_v3.pt"
-ONNX_PATH = "models/Model_v3.onnx"
+BEST_MODEL_PATH = "models/Model_v5.pt"
+ONNX_PATH = "models/Model_v5.onnx"
 OPSET = 17
 MAX_LENGTH = 128  # must match training config
-HIDDEN_DIM = 256
+HIDDEN_DIM = 512
 DROPOUT = 0.3
 
 # Test sentence to verify the export round-trips correctly

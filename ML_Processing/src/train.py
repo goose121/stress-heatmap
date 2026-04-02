@@ -37,7 +37,7 @@ CFG = {
     # Paths (relative to ML_Processing/)
     "data_path": "data/processed/training_data.csv",
     "checkpoint_dir": "models/",
-    "best_model_path": "models/Model_v3.pt",
+    "best_model_path": "models/Model_v5.pt",
 
     # Data
     "test_size": 0.15, # 15% held-out test set
@@ -46,7 +46,7 @@ CFG = {
     "random_seed": 42,
 
     # Model
-    "hidden_dim": 256,
+    "hidden_dim": 512,
     "dropout": 0.3,
 
     # Stage 1 - frozen encoder, head only
@@ -57,9 +57,9 @@ CFG = {
     # Stage 2 - top-3 layers unfrozen
     "stage2_epochs": 10,
     "stage2_lr_head": 1e-4,
-    "stage2_lr_layers": 1e-5, # 10× lower than head
+    "stage2_lr_layers": 3e-5, # 10× lower than head
     "stage2_batch": 32,
-    "unfreeze_n":4, # how many top layers to unfreeze
+    "unfreeze_n":6, # how many top layers to unfreeze
 
     "use_amp": True,
     "amp_dtype": torch.bfloat16,
@@ -283,12 +283,12 @@ def main():
     layer_params = [p for layer in model.encoder.encoder.layer[-CFG["unfreeze_n"]:]
                      for p in layer.parameters()]
 
-    optimizer_s2  = AdamW([
+    optimizer_s2 = AdamW([
         {"params": head_params, "lr": CFG["stage2_lr_head"]},
         {"params": layer_params, "lr": CFG["stage2_lr_layers"]},
     ], weight_decay=1e-2)
 
-    scheduler_s2  = OneCycleLR(
+    scheduler_s2 = OneCycleLR(
         optimizer_s2,
         max_lr=[CFG["stage2_lr_head"], CFG["stage2_lr_layers"]],
         steps_per_epoch=len(s2_loader),
