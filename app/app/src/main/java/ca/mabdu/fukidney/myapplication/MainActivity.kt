@@ -91,7 +91,7 @@ class MainActivity : ComponentActivity() {
                         .padding(innerPadding)
                         .padding(10.dp, 0.dp),
                 ) {
-                    var feelingsFieldState = rememberTextFieldState()
+                    val feelingsFieldState = rememberTextFieldState()
                     OutlinedTextField(
                         state = feelingsFieldState,
                         label = { Text("How are you feeling?") },
