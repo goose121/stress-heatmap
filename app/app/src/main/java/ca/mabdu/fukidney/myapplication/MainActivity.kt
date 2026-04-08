@@ -104,9 +104,8 @@ class MainActivity : ComponentActivity() {
 
                     // Dropdown code taken from
                     // https://developer.android.com/reference/kotlin/androidx/compose/material3/ExposedDropdownMenuBox.composable
-                    val options: List<String> = departments
                     var expanded by remember { mutableStateOf(false) }
-                    val textFieldState = rememberTextFieldState(options[0])
+                    val departmentFieldState = rememberTextFieldState(departments[0])
 
                     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
                         TextField(
@@ -117,7 +116,7 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxWidth()
                                 .padding(0.dp, 20.dp, 0.dp, 0.dp)
                                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-                            state = textFieldState,
+                            state = departmentFieldState,
                             readOnly = true,
                             lineLimits = TextFieldLineLimits.SingleLine,
                             label = { Text("Department") },
@@ -128,11 +127,11 @@ class MainActivity : ComponentActivity() {
                             expanded = expanded,
                             onDismissRequest = { expanded = false },
                         ) {
-                            options.forEachIndexed { _, option ->
+                            departments.forEachIndexed { _, option ->
                                 DropdownMenuItem(
                                     text = { Text(option, style = MaterialTheme.typography.bodyLarge) },
                                     onClick = {
-                                        textFieldState.setTextAndPlaceCursorAtEnd(option)
+                                        departmentFieldState.setTextAndPlaceCursorAtEnd(option)
                                         expanded = false
                                     },
                                     contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
