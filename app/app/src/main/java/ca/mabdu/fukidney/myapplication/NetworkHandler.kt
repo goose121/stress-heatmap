@@ -11,13 +11,14 @@ object NetworkHandler {
     @RequiresPermission(
         Manifest.permission.ACCESS_FINE_LOCATION
     )
-    suspend fun sendClassification(cl: Int, location: Location, ctx: Context) {
+    suspend fun sendClassification(cl: Int, location: Location, department: String, ctx: Context) {
 
         // 1. Prepare the Data Object
         // We use a random UUID for ip_address so every submission is a new point
         val report = StressReport(
             ip_address = java.util.UUID.randomUUID().toString(),
             stress_level = cl,
+            department = department,
             longitude = location.longitude,
             latitude = location.latitude
         )

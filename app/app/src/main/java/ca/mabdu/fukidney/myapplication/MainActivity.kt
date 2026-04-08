@@ -148,7 +148,11 @@ class MainActivity : ComponentActivity() {
                             .padding(0.dp, 10.dp)
                             .fillMaxWidth(),
                         onClick = {
-                            sendNetworkData(feelingsFieldState.text.toString(), ctx, scope)
+                            sendNetworkData(
+                                data = feelingsFieldState.text.toString(),
+                                department = departmentFieldState.text as String,
+                                ctx = ctx,
+                                scope = scope)
                         },
                         enabled = networkState == NetworkState.IDLE
                     ) {
@@ -166,6 +170,7 @@ class MainActivity : ComponentActivity() {
 
     private fun sendNetworkData(
         data: String,
+        department: String,
         ctx: Context,
         scope: CoroutineScope
     ) {
@@ -211,6 +216,7 @@ class MainActivity : ComponentActivity() {
                             data
                         )!!,
                         location,
+                        department,
                         ctx = ctx,
                     )
                 } catch (e: Exception) {

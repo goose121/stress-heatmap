@@ -16,6 +16,7 @@ interface StressApi {
 data class StressReport(
     val ip_address: String,   // The unique ID (UUID)
     val stress_level: Int,    // 1-5 from your ONNX model
+    val department: String,
     val longitude: Double,    // From GPS
     val latitude: Double      // From GPS
 )
