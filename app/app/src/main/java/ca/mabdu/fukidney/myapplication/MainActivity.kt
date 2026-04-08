@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun MainContent() {
-//        MyApplicationTheme() {
+        MyApplicationTheme() {
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
             ) { innerPadding ->
@@ -164,7 +164,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
-//            }
+            }
         }
     }
 
@@ -247,9 +247,9 @@ class MainActivity : ComponentActivity() {
     @Preview(showBackground = true)
     @Composable
     fun MainContentPreview() {
-//        MyApplicationTheme {
+        MyApplicationTheme {
             MainContent()
-//        }
+        }
     }
 }
 
