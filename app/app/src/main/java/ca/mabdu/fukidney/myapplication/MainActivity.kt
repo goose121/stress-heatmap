@@ -105,7 +105,6 @@ class MainActivity : ComponentActivity() {
                     val options: List<String> = departments
                     var expanded by remember { mutableStateOf(false) }
                     val textFieldState = rememberTextFieldState(options[0])
-                    var checkedIndex: Int? by remember { mutableStateOf(null) }
 
                     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
                         TextField(
@@ -127,13 +126,11 @@ class MainActivity : ComponentActivity() {
                             expanded = expanded,
                             onDismissRequest = { expanded = false },
                         ) {
-                            val optionCount = options.size
-                            options.forEachIndexed { index, option ->
+                            options.forEachIndexed { _, option ->
                                 DropdownMenuItem(
                                     text = { Text(option, style = MaterialTheme.typography.bodyLarge) },
                                     onClick = {
                                         textFieldState.setTextAndPlaceCursorAtEnd(option)
-                                        checkedIndex = index
                                         expanded = false
                                     },
                                     contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
