@@ -1,36 +1,66 @@
-import os
+import sys
 import numpy as np
-from text_encoding import load_onnx_session, predict_onnx
+import onnxruntime as ort
+from transformers import AutoTokenizer
+
+ONNX_PATH  = "models/Model_v4.onnx"
+TOK_DIR = "models/tokenizer"
+MAX_LENGTH = 128
+
+def load(onnx_path: str = ONNX_PATH, tok_dir: str = TOK_DIR):
+    """Load the ONNX session and tokenizer. Call once at startup."""
+    tokenizer = AutoTokenizer.from_pretrained(tok_dir)
+    session = ort.InferenceSession(
+        onnx_path,
+        providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
+    )
+    return session, tokenizer
 
 
-def test():
-    PIPELINE_PATH = 'models/Model_v2.onnx'
+def predict(text: str, session: ort.InferenceSession, tokenizer) -> dict:
+    """
+    Run inference on a single string.
 
-    if not os.path.exists(PIPELINE_PATH):
-        print(f"Error: {PIPELINE_PATH} not found. Run train.py first.")
-        return
+    Returns a dict with:
+        level int) stress level 1-5
+        confidence (float) softmax probability of the predicted class
+        scores (list) softmax probabilities for all 5 levels
+    """
+    encoding = tokenizer(
+        text,
+        padding="max_length",
+        truncation=True,
+        max_length=MAX_LENGTH,
+        return_tensors="np",
+    )
+    logits = session.run(
+        ["logits"],
+        {
+            "input_ids": encoding["input_ids"].astype(np.int64),
+            "attention_mask": encoding["attention_mask"].astype(np.int64),
+        },
+    )[0][0]  # shape (5,)
 
-    # Load the single combined ONNX model
-    session = load_onnx_session(PIPELINE_PATH)
+    # Softmax for probabilities
+    exp = np.exp(logits - logits.max())
+    scores = (exp / exp.sum()).tolist()
 
-    # Test cases representing all 5 levels
-    test_cases = [
-        "I'm actually feeling really productive today and finished my assignment early.",      # Level 1
-        "I have a big presentation tomorrow, I'm a bit nervous but excited to show my work.", # Level 2
-        "Just sitting in the library doing some light reading for next week's seminar.",       # Level 3
-        "I'm starting to fall behind on my lab reports and the deadlines are piling up.",      # Level 4
-        "I haven't slept in two days, I'm failing three classes, and I just want to quit."    # Level 5
-    ]
+    level = int(np.argmax(scores)) + 1  # 1-indexed
 
-    # Predict — raw strings go straight to the model, no separate vectorizer step
-    predictions = predict_onnx(session, test_cases)
-
-    print(f"{'Test Sentence':<85} | {'Predicted Level'}")
-    print("-" * 103)
-    for text, pred in zip(test_cases, predictions):
-        display_text = (text[:80] + '..') if len(text) > 80 else text
-        print(f"{display_text:<85} | {pred}")
+    return {
+        "level": level,
+        "confidence":  round(scores[level - 1], 4),
+        "scores": [round(s, 4) for s in scores],
+    }
 
 
 if __name__ == "__main__":
-    test()
+    text = "I have three deadlines tomorrow and I haven't started."
+
+    session, tokenizer = load()
+    result = predict(text, session, tokenizer)
+
+    print(f"\nInput : {text}")
+    print(f"Level : {result['level']} / 5")
+    print(f"Confidence : {result['confidence'] * 100:.1f}%")
+    print(f"All scores : { {i+1: f'{s*100:.1f}%' for i, s in enumerate(result['scores'])} }")
