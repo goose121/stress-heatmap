@@ -102,6 +102,8 @@ class MainActivity : ComponentActivity() {
 
                     )
 
+                    // Dropdown code taken from
+                    // https://developer.android.com/reference/kotlin/androidx/compose/material3/ExposedDropdownMenuBox.composable
                     val options: List<String> = departments
                     var expanded by remember { mutableStateOf(false) }
                     val textFieldState = rememberTextFieldState(options[0])
