@@ -26,7 +26,7 @@
     <!-- Main map container -->
     <div id="map-container"></div>
 
-    <!-- Collapsible right sidebar -->
+    <!-- Collapsible left sidebar -->
     <aside id="sidebar" class="sidebar" aria-label="Map details panel">
         <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true"><</button>
 
@@ -39,16 +39,22 @@
             <!-- Stress range controls -->
             <div class="legend">
                 <div class="legend-title">Stress Range</div>
-                <div class="dual-slider-labels">
-                    <span>1 (Low)</span>
-                    <span>5 (High)</span>
+                <div class="stress-value-inputs" aria-label="Stress range numeric inputs">
+                    <label class="stress-value-field" for="stress-min-input">
+                        <span class="stress-value-label">Min</span>
+                        <input id="stress-min-input" class="stress-value-input" type="number" min="1" max="5" step="0.01" value="1.00" inputmode="decimal" aria-label="Minimum stress value">
+                    </label>
+                    <label class="stress-value-field" for="stress-max-input">
+                        <span class="stress-value-label">Max</span>
+                        <input id="stress-max-input" class="stress-value-input" type="number" min="1" max="5" step="0.01" value="5.00" inputmode="decimal" aria-label="Maximum stress value">
+                    </label>
                 </div>
                 <div class="range-slider" aria-label="Stress range selector">
                     <div class="range-track"></div>
                     <div id="range-mask-left" class="range-mask"></div>
                     <div id="range-mask-right" class="range-mask"></div>
-                    <input id="stress-min" class="range-input" type="range" min="1" max="5" step="1" value="1" aria-label="Minimum stress">
-                    <input id="stress-max" class="range-input" type="range" min="1" max="5" step="1" value="5" aria-label="Maximum stress">
+                    <input id="stress-min" class="range-input" type="range" min="1" max="5" step="0.01" value="1.00" aria-label="Minimum stress">
+                    <input id="stress-max" class="range-input" type="range" min="1" max="5" step="0.01" value="5.00" aria-label="Maximum stress">
                 </div>
             </div>
 

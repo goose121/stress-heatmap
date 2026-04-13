@@ -82,10 +82,15 @@ const DEPARTMENT_TO_FACULTY = {
 };
 
 const DEPARTMENTS = Object.keys(DEPARTMENT_TO_FACULTY);
+
 const DEPARTMENT_FACULTY_CASE_SQL = DEPARTMENTS.map((department) => {
     const faculty = DEPARTMENT_TO_FACULTY[department];
     return `WHEN '${department.replace(/'/g, "''")}' THEN '${faculty.replace(/'/g, "''")}'`;
 }).join('\n                ');
+
+function normalizeStressLevel(value) {
+    return Number(Number(value).toFixed(2));
+}
 
 const db = new Database(dbFilePath);
 
@@ -97,7 +102,10 @@ db.exec(`
 
     CREATE TABLE stress_reports (
         ip_address TEXT NOT NULL,
-        stress_level INTEGER NOT NULL CHECK(stress_level BETWEEN 1 AND 5),
+        stress_level REAL NOT NULL CHECK(
+            stress_level BETWEEN 1 AND 5
+            AND abs(stress_level - round(stress_level, 2)) < 0.000001
+        ),
         longitude REAL NOT NULL,
         latitude REAL NOT NULL,
         datetime TEXT NOT NULL DEFAULT (datetime('now')),
@@ -109,8 +117,11 @@ db.exec(`
     ON stress_reports (datetime);
 
     CREATE TABLE display (
-        ip_address TEXT PRIMARY KEY,
-        stress_level INTEGER NOT NULL CHECK(stress_level BETWEEN 1 AND 5),
+        ip_address TEXT NOT NULL,
+        stress_level REAL NOT NULL CHECK(
+            stress_level BETWEEN 1 AND 5
+            AND abs(stress_level - round(stress_level, 2)) < 0.000001
+        ),
         longitude REAL NOT NULL,
         latitude REAL NOT NULL,
         week_of TEXT NOT NULL,
@@ -122,7 +133,8 @@ db.exec(`
             'Faculty of Health, Community and Education',
             'Faculty of Science and Technology',
             'School of Communication Studies'
-        ))
+        )),
+        PRIMARY KEY (ip_address, week_of)
     );
 
     CREATE INDEX idx_display_week_of
@@ -147,13 +159,12 @@ db.exec(`
                 ELSE 'Unknown'
             END
         )
-        ON CONFLICT(ip_address)
+        ON CONFLICT(ip_address, week_of)
         DO UPDATE SET
             stress_level = excluded.stress_level,
             longitude = excluded.longitude,
             latitude = excluded.latitude,
             department = excluded.department,
-            week_of = excluded.week_of,
             faculty = excluded.faculty;
     END;
 
@@ -173,13 +184,12 @@ db.exec(`
                 ELSE 'Unknown'
             END
         )
-        ON CONFLICT(ip_address)
+        ON CONFLICT(ip_address, week_of)
         DO UPDATE SET
             stress_level = excluded.stress_level,
             longitude = excluded.longitude,
             latitude = excluded.latitude,
             department = excluded.department,
-            week_of = excluded.week_of,
             faculty = excluded.faculty;
     END;
 
@@ -265,7 +275,7 @@ function stressFromDate(date, startDate, endDate) {
     // Base rises from ~1 to ~5 over time, then add mild noise.
     const base = 1 + (progress * 4);
     const noise = (Math.random() * 1.4) - 0.7;
-    return Math.max(1, Math.min(5, Math.round(base + noise)));
+    return normalizeStressLevel(Math.max(1, Math.min(5, base + noise)));
 }
 
 /**
@@ -291,7 +301,7 @@ function generateHotspots(startDate, endDate) {
             const ip = `10.${Math.floor(ipCounter / 255)}.${ipCounter % 255}.${i}`;
             const date = randomUtcDatetimeInRange(startDate, endDate);
             const baselineStress = stressFromDate(date, startDate, endDate);
-            const stressLevel = Math.max(1, Math.min(5, baselineStress + hotspot.stressBias));
+            const stressLevel = normalizeStressLevel(Math.max(1, Math.min(5, baselineStress + hotspot.stressBias)));
             
             const longitude = hotspot.lng + (Math.random() - 0.5) * 0.0015;
             const latitude = hotspot.lat + (Math.random() - 0.5) * 0.001;
