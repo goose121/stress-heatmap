@@ -34,7 +34,7 @@ from text_encoding import (
 # Configuration 
 
 CFG = {
-    # Paths (relative to ML_Processing/)
+    # Paths 
     "data_path": "data/processed/training_data.csv",
     "checkpoint_dir": "models/",
     "best_model_path": "models/Model_v5.pt",
@@ -54,7 +54,7 @@ CFG = {
     "stage1_lr": 1e-4,
     "stage1_batch": 64,
 
-    # Stage 2 - top-3 layers unfrozen
+    # Stage 2 - top-6 layers unfrozen
     "stage2_epochs": 10,
     "stage2_lr_head": 1e-4,
     "stage2_lr_layers": 3e-5, # 10× lower than head

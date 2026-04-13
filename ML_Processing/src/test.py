@@ -45,14 +45,19 @@ def predict(text: str, session: ort.InferenceSession, tokenizer) -> dict:
     exp = np.exp(logits - logits.max())
     scores = (exp / exp.sum()).tolist()
 
-    level = int(np.argmax(scores)) + 1  # 1-indexed
+    levels = np.arange(1, 6)  # [1,2,3,4,5]
+
+    # Expected value (weighted average)
+    float_score = float(np.dot(scores, levels))
+
+    level = int(np.argmax(scores)) + 1 
 
     return {
-        "level": level,
-        "confidence":  round(scores[level - 1], 4),
+        "level": level,  
+        "score": round(float_score, 2),  # continuous output
+        "confidence": round(scores[level - 1], 4),
         "scores": [round(s, 4) for s in scores],
     }
-
 
 if __name__ == "__main__":
     text = "I have three deadlines tomorrow and I haven't started."
@@ -62,5 +67,6 @@ if __name__ == "__main__":
 
     print(f"\nInput : {text}")
     print(f"Level : {result['level']} / 5")
+    print(f"Predicted Score: {result['score']}")
     print(f"Confidence : {result['confidence'] * 100:.1f}%")
     print(f"All scores : { {i+1: f'{s*100:.1f}%' for i, s in enumerate(result['scores'])} }")
