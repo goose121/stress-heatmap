@@ -88,6 +88,29 @@ const DEPARTMENT_FACULTY_CASE_SQL = DEPARTMENTS.map((department) => {
     return `WHEN '${department.replace(/'/g, "''")}' THEN '${faculty.replace(/'/g, "''")}'`;
 }).join('\n                ');
 
+const DISPLAY_SYNC_TRIGGER_BODY_SQL = `
+        INSERT INTO display (ip_address, stress_level, longitude, latitude, week_of, department, faculty)
+        VALUES (
+            NEW.ip_address,
+            NEW.stress_level,
+            NEW.longitude,
+            NEW.latitude,
+            date(NEW.datetime, '-' || strftime('%w', NEW.datetime) || ' days'),
+            NEW.department,
+            CASE NEW.department
+                ${DEPARTMENT_FACULTY_CASE_SQL}
+                ELSE 'Unknown'
+            END
+        )
+        ON CONFLICT(ip_address, week_of)
+        DO UPDATE SET
+            stress_level = excluded.stress_level,
+            longitude = excluded.longitude,
+            latitude = excluded.latitude,
+            department = excluded.department,
+            faculty = excluded.faculty;
+`;
+
 function normalizeStressLevel(value) {
     return Number(Number(value).toFixed(2));
 }
@@ -146,51 +169,13 @@ db.exec(`
     CREATE TRIGGER trg_stress_reports_ai
     AFTER INSERT ON stress_reports
     BEGIN
-        INSERT INTO display (ip_address, stress_level, longitude, latitude, week_of, department, faculty)
-        VALUES (
-            NEW.ip_address,
-            NEW.stress_level,
-            NEW.longitude,
-            NEW.latitude,
-            date(NEW.datetime, '-' || strftime('%w', NEW.datetime) || ' days'),
-            NEW.department,
-            CASE NEW.department
-                ${DEPARTMENT_FACULTY_CASE_SQL}
-                ELSE 'Unknown'
-            END
-        )
-        ON CONFLICT(ip_address, week_of)
-        DO UPDATE SET
-            stress_level = excluded.stress_level,
-            longitude = excluded.longitude,
-            latitude = excluded.latitude,
-            department = excluded.department,
-            faculty = excluded.faculty;
+        ${DISPLAY_SYNC_TRIGGER_BODY_SQL}
     END;
 
     CREATE TRIGGER trg_stress_reports_au
     AFTER UPDATE ON stress_reports
     BEGIN
-        INSERT INTO display (ip_address, stress_level, longitude, latitude, week_of, department, faculty)
-        VALUES (
-            NEW.ip_address,
-            NEW.stress_level,
-            NEW.longitude,
-            NEW.latitude,
-            date(NEW.datetime, '-' || strftime('%w', NEW.datetime) || ' days'),
-            NEW.department,
-            CASE NEW.department
-                ${DEPARTMENT_FACULTY_CASE_SQL}
-                ELSE 'Unknown'
-            END
-        )
-        ON CONFLICT(ip_address, week_of)
-        DO UPDATE SET
-            stress_level = excluded.stress_level,
-            longitude = excluded.longitude,
-            latitude = excluded.latitude,
-            department = excluded.department,
-            faculty = excluded.faculty;
+        ${DISPLAY_SYNC_TRIGGER_BODY_SQL}
     END;
 
     CREATE TRIGGER trg_stress_reports_ad

@@ -23,14 +23,33 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Main map container -->
-    <div id="map-container"></div>
+    <div id="login-overlay" class="login-overlay" role="dialog" aria-modal="true" aria-labelledby="login-title">
+        <form id="login-form" class="legend login-panel">
+            <div id="login-title" class="legend-title">Sign In</div>
 
-    <!-- Collapsible left sidebar -->
-    <aside id="sidebar" class="sidebar" aria-label="Map details panel">
-        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true"><</button>
+            <div class="date-filter-row">
+                <label class="date-filter-label" for="login-username">Username</label>
+                <input id="login-username" class="date-input" name="username" type="text" autocomplete="username" placeholder="Enter username" required>
+            </div>
 
-        <div class="sidebar-content">
+            <div class="date-filter-row">
+                <label class="date-filter-label" for="login-password">Password</label>
+                <input id="login-password" class="date-input" name="password" type="password" autocomplete="current-password" placeholder="Enter password" required>
+            </div>
+
+            <button class="date-preset" type="submit">Login</button>
+        </form>
+    </div>
+
+    <div id="app-shell" class="app-shell app-shell--locked" aria-hidden="true">
+        <!-- Main map container -->
+        <div id="map-container"></div>
+
+        <!-- Collapsible left sidebar -->
+        <aside id="sidebar" class="sidebar" aria-label="Map details panel">
+            <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true"><</button>
+
+            <div class="sidebar-content">
             <!-- Stats display showing data point count -->
             <div class="stats">
                 Data Points: <span id="data-count">0</span>
@@ -97,8 +116,9 @@
                     </select>
                 </div>
             </div>
-        </div>
-    </aside>
+            </div>
+        </aside>
+    </div>
 
     <!-- Main application script -->
     <script src="script.js"></script>

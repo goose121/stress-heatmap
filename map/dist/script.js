@@ -29,6 +29,11 @@ const CONFIG = {
     HEATMAP_OPACITY: 0.8
 };
 
+const AUTH_CONFIG = {
+    USERNAME: 'admin',
+    PASSWORD: 'ps'
+};
+
 let stressData = [];
 let deckInstance = null;
 let departmentOptionsSignature = '';
@@ -44,6 +49,26 @@ const categoryFilters = {
     program: ''
 };
 let hasInitializedDateRange = false;
+let hasStartedApp = false;
+
+function getCookieValue(name) {
+    const cookiePrefix = `${name}=`;
+    const cookieParts = document.cookie.split(';');
+
+    for (const part of cookieParts) {
+        const cookie = part.trim();
+        if (cookie.startsWith(cookiePrefix)) {
+            return decodeURIComponent(cookie.slice(cookiePrefix.length));
+        }
+    }
+
+    return '';
+}
+
+function setCookieValue(name, value, maxAgeSeconds) {
+    const encodedValue = encodeURIComponent(value);
+    document.cookie = `${name}=${encodedValue}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
+}
 
 function normalizeStressLevel(value) {
     return Number(Number(value).toFixed(2));
@@ -81,6 +106,90 @@ function syncStressRangeControls() {
     if (maxInput) {
         maxInput.value = stressRange.max.toFixed(2);
     }
+}
+
+function getAvailableTimestamps() {
+    return stressData
+        .map((record) => record.timestamp)
+        .filter((timestamp) => timestamp !== null);
+}
+
+function startApp() {
+    if (hasStartedApp) return;
+    hasStartedApp = true;
+
+    initSidebarToggle();
+    initStressRangeControls();
+    initDateRangeControls();
+    initCategoryFilters();
+    initMap();
+    startPolling();
+}
+
+function initLoginOverlay() {
+    const overlay = document.getElementById('login-overlay');
+    const form = document.getElementById('login-form');
+    const usernameInput = document.getElementById('login-username');
+    const passwordInput = document.getElementById('login-password');
+    const appShell = document.getElementById('app-shell');
+
+    if (!overlay || !form || !usernameInput || !passwordInput || !appShell) return;
+
+    const setLockedState = (locked) => {
+        appShell.classList.toggle('app-shell--locked', locked);
+        appShell.setAttribute('aria-hidden', locked ? 'true' : 'false');
+    };
+
+    const rememberedUsername = getCookieValue('stress-heatmap-username');
+    if (rememberedUsername) {
+        usernameInput.value = rememberedUsername;
+    }
+
+    setLockedState(true);
+    overlay.classList.remove('hidden');
+
+    if (rememberedUsername) {
+        passwordInput.focus();
+    } else {
+        usernameInput.focus();
+    }
+
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+
+        const normalizedUsername = usernameInput.value.trim();
+        const normalizedPassword = passwordInput.value.trim();
+
+        const hasUsername = normalizedUsername.length > 0;
+        const hasPassword = normalizedPassword.length > 0;
+
+        if (!hasUsername || !hasPassword) {
+            usernameInput.setCustomValidity('Enter both username and password.');
+            passwordInput.setCustomValidity('Enter both username and password.');
+            form.reportValidity();
+            usernameInput.setCustomValidity('');
+            passwordInput.setCustomValidity('');
+            return;
+        }
+
+        const validCredentials =
+            normalizedUsername === AUTH_CONFIG.USERNAME
+            && normalizedPassword === AUTH_CONFIG.PASSWORD;
+
+        if (!validCredentials) {
+            passwordInput.value = '';
+            passwordInput.setCustomValidity('Invalid username or password.');
+            form.reportValidity();
+            passwordInput.setCustomValidity('');
+            passwordInput.focus();
+            return;
+        }
+
+        setCookieValue('stress-heatmap-username', normalizedUsername, 60 * 60 * 24 * 30);
+        overlay.classList.add('hidden');
+        setLockedState(false);
+        startApp();
+    });
 }
 
 /**
@@ -131,6 +240,14 @@ function getStartOfWeek(date) {
     const day = start.getDay();
     start.setDate(start.getDate() - day);
     return start;
+}
+
+function getCurrentWeekBounds() {
+    const now = new Date();
+    const weekStart = getStartOfWeek(now);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    return { weekStart, weekEnd };
 }
 
 /**
@@ -433,9 +550,7 @@ function initDateRangeControls() {
     endInput.addEventListener('change', applyDateFilter);
 
     const applyPresetRange = (startDate, endDate) => {
-        const timestamps = stressData
-            .map((record) => record.timestamp)
-            .filter((timestamp) => timestamp !== null);
+        const timestamps = getAvailableTimestamps();
 
         if (timestamps.length > 0) {
             const minTimestamp = Math.min(...timestamps);
@@ -455,10 +570,7 @@ function initDateRangeControls() {
 
     if (thisWeekButton) {
         thisWeekButton.addEventListener('click', () => {
-            const now = new Date();
-            const weekStart = getStartOfWeek(now);
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekStart.getDate() + 6);
+            const { weekStart, weekEnd } = getCurrentWeekBounds();
             applyPresetRange(weekStart, weekEnd);
         });
     }
@@ -499,19 +611,14 @@ function updateDateFilterBounds() {
     if (!startInput || !endInput) return;
 
     const setCurrentWeekRange = () => {
-        const now = new Date();
-        const weekStart = getStartOfWeek(now);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
+        const { weekStart, weekEnd } = getCurrentWeekBounds();
         startInput.value = toLocalDateInputValue(weekStart);
         endInput.value = toLocalDateInputValue(weekEnd);
         dateRange.start = parseDateStart(startInput.value);
         dateRange.end = parseDateEnd(endInput.value);
     };
 
-    const timestamps = stressData
-        .map((record) => record.timestamp)
-        .filter((timestamp) => timestamp !== null);
+    const timestamps = getAvailableTimestamps();
 
     if (timestamps.length === 0) {
         startInput.min = '';
@@ -537,10 +644,7 @@ function updateDateFilterBounds() {
     endInput.max = maxDate;
 
     if (!hasInitializedDateRange) {
-        const now = new Date();
-        const weekStart = getStartOfWeek(now);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
+        const { weekStart, weekEnd } = getCurrentWeekBounds();
 
         const clampedStart = clampDateToDataBounds(weekStart, minTimestamp, maxTimestamp);
         const clampedEnd = clampDateToDataBounds(weekEnd, minTimestamp, maxTimestamp);
@@ -719,10 +823,5 @@ function startPolling() {
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Starting MRU Stress Heatmap');
-    initSidebarToggle();
-    initStressRangeControls();
-    initDateRangeControls();
-    initCategoryFilters();
-    initMap();
-    startPolling();
+    initLoginOverlay();
 });
