@@ -2,7 +2,6 @@ package ca.mabdu.fukidney.myapplication
 
 import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -15,20 +14,30 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ca.mabdu.fukidney.myapplication.ui.theme.MyApplicationTheme
+//import ca.mabdu.fukidney.myapplication.ui.theme.MyApplicationTheme
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -46,7 +55,6 @@ class MainActivity : ComponentActivity() {
     }
     private val networkState = mutableStateOf(NetworkState.IDLE)
 
-    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -83,7 +91,7 @@ class MainActivity : ComponentActivity() {
                         .padding(innerPadding)
                         .padding(10.dp, 0.dp),
                 ) {
-                    var feelingsFieldState = rememberTextFieldState()
+                    val feelingsFieldState = rememberTextFieldState()
                     OutlinedTextField(
                         state = feelingsFieldState,
                         label = { Text("How are you feeling?") },
@@ -93,15 +101,58 @@ class MainActivity : ComponentActivity() {
                             .fillMaxWidth()
 
                     )
+
+                    // Dropdown code taken from
+                    // https://developer.android.com/reference/kotlin/androidx/compose/material3/ExposedDropdownMenuBox.composable
+                    var expanded by remember { mutableStateOf(false) }
+                    val departmentFieldState = rememberTextFieldState(departments[0])
+
+                    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+                        TextField(
+                            // The `menuAnchor` modifier must be passed to the text field to handle
+                            // expanding/collapsing the menu on click. A read-only text field has
+                            // the anchor type `PrimaryNotEditable`.
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(0.dp, 20.dp, 0.dp, 0.dp)
+                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                            state = departmentFieldState,
+                            readOnly = true,
+                            lineLimits = TextFieldLineLimits.SingleLine,
+                            label = { Text("Department") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                        ) {
+                            departments.forEachIndexed { _, option ->
+                                DropdownMenuItem(
+                                    text = { Text(option, style = MaterialTheme.typography.bodyLarge) },
+                                    onClick = {
+                                        departmentFieldState.setTextAndPlaceCursorAtEnd(option)
+                                        expanded = false
+                                    },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                                )
+                            }
+                        }
+                    }
+
                     val ctx = LocalContext.current
                     val scope = rememberCoroutineScope()
                     val networkState by networkState
                     Button(
                         modifier = Modifier
-                            .padding(0.dp, 20.dp)
+                            .padding(0.dp, 10.dp)
                             .fillMaxWidth(),
                         onClick = {
-                            sendNetworkData(feelingsFieldState.text.toString(), ctx, scope)
+                            sendNetworkData(
+                                data = feelingsFieldState.text.toString(),
+                                department = departmentFieldState.text as String,
+                                ctx = ctx,
+                                scope = scope)
                         },
                         enabled = networkState == NetworkState.IDLE
                     ) {
@@ -119,6 +170,7 @@ class MainActivity : ComponentActivity() {
 
     private fun sendNetworkData(
         data: String,
+        department: String,
         ctx: Context,
         scope: CoroutineScope
     ) {
@@ -164,6 +216,7 @@ class MainActivity : ComponentActivity() {
                             data
                         )!!,
                         location,
+                        department,
                         ctx = ctx,
                     )
                 } catch (e: Exception) {
@@ -180,7 +233,13 @@ class MainActivity : ComponentActivity() {
                     networkState.value = NetworkState.IDLE
                 }
             } catch (e: SecurityException) {
-                Toast.makeText(this@MainActivity, "Location permission is required to submit", Toast.LENGTH_SHORT).show()
+                runOnUiThread {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Location permission is required to submit",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
         }
     }
