@@ -58,6 +58,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        System.loadLibrary("c++_shared")
+        //System.loadLibrary("libdjl_tokenizer")
+
         // 1. Initialize the AI Model (Critical!)
         ClassificationModel.init(this)
 

@@ -17,6 +17,10 @@ playServicesLocation = "21.3.0"
 roomVersion = "2.8.4"
 material = "1.13.0"
 material3Version = "1.4.0"
+sentenceEmbeddings = "v6.1"
+tokenizerNative = "0.33.0"
+tokenizers = "0.33.0"
+tokenizersVersion = "0.13.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -44,6 +48,9 @@ play-services-location = { group = "com.google.android.gms", name = "play-servic
 retrofit = { module = "com.squareup.retrofit2:retrofit", version.ref = "converterGson" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3Version" }
+sentence-embeddings = { module = "io.gitlab.shubham0204:sentence-embeddings", version.ref = "sentenceEmbeddings" }
+tokenizer-native = { module = "ai.djl.android:tokenizer-native", version.ref = "tokenizerNative" }
+tokenizers = { module = "ai.djl.huggingface:tokenizers", version.ref = "tokenizers" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

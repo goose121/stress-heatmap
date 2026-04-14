@@ -11,7 +11,7 @@ object NetworkHandler {
     @RequiresPermission(
         Manifest.permission.ACCESS_FINE_LOCATION
     )
-    suspend fun sendClassification(cl: Int, location: Location, department: String, ctx: Context) {
+    suspend fun sendClassification(cl: Float, location: Location, department: String, ctx: Context) {
 
         // 1. Prepare the Data Object
         // We use a random UUID for ip_address so every submission is a new point
