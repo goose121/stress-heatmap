@@ -12,10 +12,17 @@ android {
 
     defaultConfig {
         applicationId = "ca.mabdu.fukidney.myapplication"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+
+        externalNativeBuild {
+            cmake {
+                arguments("-DANDROID_STL=c++_shared")
+            }
+        }
+
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -39,6 +46,13 @@ android {
     buildFeatures {
         compose = true
     }
+
+    sourceSets {
+        getByName("main") {
+            jniLibs.directories.add("src/main/jniLibs")
+        }
+    }
+
 }
 
 dependencies {
@@ -75,4 +89,6 @@ dependencies {
 
     // Coroutines (to prevent UI freezing)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.tokenizers)
+    implementation(libs.tokenizer.native)
 }
