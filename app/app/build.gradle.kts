@@ -33,8 +33,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
+    kotlin {
+        jvmToolchain(11)
     }
     buildFeatures {
         compose = true
@@ -49,9 +49,10 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.compose.material3)
     implementation(libs.play.services.location)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.1.1")
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.material)
+    implementation(libs.androidx.material3)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -60,18 +61,18 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     // Retrofit for Cloudflare Networking
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation(libs.retrofit)
+    implementation(libs.converter.gson)
 
     // ONNX Runtime for AI
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.16.0")
+    implementation(libs.onnxruntime.android)
 
     // Room for Local SQLite
     val roomVersion = "2.6.1"
-    implementation("androidx.room:room-runtime:$roomVersion")
-    implementation("androidx.room:room-ktx:$roomVersion")
-    annotationProcessor("androidx.room:room-compiler:$roomVersion")
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    annotationProcessor(libs.androidx.room.compiler)
 
     // Coroutines (to prevent UI freezing)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation(libs.kotlinx.coroutines.android)
 }
