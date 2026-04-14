@@ -29,6 +29,11 @@ const CONFIG = {
     HEATMAP_OPACITY: 0.8
 };
 
+const AUTH_CONFIG = {
+    USERNAME: 'admin',
+    PASSWORD: 'ps'
+};
+
 let stressData = [];
 let deckInstance = null;
 let departmentOptionsSignature = '';
@@ -44,6 +49,148 @@ const categoryFilters = {
     program: ''
 };
 let hasInitializedDateRange = false;
+let hasStartedApp = false;
+
+function getCookieValue(name) {
+    const cookiePrefix = `${name}=`;
+    const cookieParts = document.cookie.split(';');
+
+    for (const part of cookieParts) {
+        const cookie = part.trim();
+        if (cookie.startsWith(cookiePrefix)) {
+            return decodeURIComponent(cookie.slice(cookiePrefix.length));
+        }
+    }
+
+    return '';
+}
+
+function setCookieValue(name, value, maxAgeSeconds) {
+    const encodedValue = encodeURIComponent(value);
+    document.cookie = `${name}=${encodedValue}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
+}
+
+function normalizeStressLevel(value) {
+    return Number(Number(value).toFixed(2));
+}
+
+function clampStressLevel(value) {
+    return Math.max(1, Math.min(5, normalizeStressLevel(value)));
+}
+
+function readStressInputValue(inputElement, fallbackValue) {
+    if (!inputElement) return fallbackValue;
+
+    const parsedValue = Number(inputElement.value);
+    return Number.isFinite(parsedValue) ? clampStressLevel(parsedValue) : fallbackValue;
+}
+
+function syncStressRangeControls() {
+    const minSlider = document.getElementById('stress-min');
+    const maxSlider = document.getElementById('stress-max');
+    const minInput = document.getElementById('stress-min-input');
+    const maxInput = document.getElementById('stress-max-input');
+
+    if (minSlider) {
+        minSlider.value = stressRange.min.toFixed(2);
+    }
+
+    if (maxSlider) {
+        maxSlider.value = stressRange.max.toFixed(2);
+    }
+
+    if (minInput) {
+        minInput.value = stressRange.min.toFixed(2);
+    }
+
+    if (maxInput) {
+        maxInput.value = stressRange.max.toFixed(2);
+    }
+}
+
+function getAvailableTimestamps() {
+    return stressData
+        .map((record) => record.timestamp)
+        .filter((timestamp) => timestamp !== null);
+}
+
+function startApp() {
+    if (hasStartedApp) return;
+    hasStartedApp = true;
+
+    initSidebarToggle();
+    initStressRangeControls();
+    initDateRangeControls();
+    initCategoryFilters();
+    initMap();
+    startPolling();
+}
+
+function initLoginOverlay() {
+    const overlay = document.getElementById('login-overlay');
+    const form = document.getElementById('login-form');
+    const usernameInput = document.getElementById('login-username');
+    const passwordInput = document.getElementById('login-password');
+    const appShell = document.getElementById('app-shell');
+
+    if (!overlay || !form || !usernameInput || !passwordInput || !appShell) return;
+
+    const setLockedState = (locked) => {
+        appShell.classList.toggle('app-shell--locked', locked);
+        appShell.setAttribute('aria-hidden', locked ? 'true' : 'false');
+    };
+
+    const rememberedUsername = getCookieValue('stress-heatmap-username');
+    if (rememberedUsername) {
+        usernameInput.value = rememberedUsername;
+    }
+
+    setLockedState(true);
+    overlay.classList.remove('hidden');
+
+    if (rememberedUsername) {
+        passwordInput.focus();
+    } else {
+        usernameInput.focus();
+    }
+
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+
+        const normalizedUsername = usernameInput.value.trim();
+        const normalizedPassword = passwordInput.value.trim();
+
+        const hasUsername = normalizedUsername.length > 0;
+        const hasPassword = normalizedPassword.length > 0;
+
+        if (!hasUsername || !hasPassword) {
+            usernameInput.setCustomValidity('Enter both username and password.');
+            passwordInput.setCustomValidity('Enter both username and password.');
+            form.reportValidity();
+            usernameInput.setCustomValidity('');
+            passwordInput.setCustomValidity('');
+            return;
+        }
+
+        const validCredentials =
+            normalizedUsername === AUTH_CONFIG.USERNAME
+            && normalizedPassword === AUTH_CONFIG.PASSWORD;
+
+        if (!validCredentials) {
+            passwordInput.value = '';
+            passwordInput.setCustomValidity('Invalid username or password.');
+            form.reportValidity();
+            passwordInput.setCustomValidity('');
+            passwordInput.focus();
+            return;
+        }
+
+        setCookieValue('stress-heatmap-username', normalizedUsername, 60 * 60 * 24 * 30);
+        overlay.classList.add('hidden');
+        setLockedState(false);
+        startApp();
+    });
+}
 
 /**
  * parseWeekOfTimestamp - Parses display.week_of (YYYY-MM-DD) into epoch milliseconds
@@ -93,6 +240,14 @@ function getStartOfWeek(date) {
     const day = start.getDay();
     start.setDate(start.getDate() - day);
     return start;
+}
+
+function getCurrentWeekBounds() {
+    const now = new Date();
+    const weekStart = getStartOfWeek(now);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    return { weekStart, weekEnd };
 }
 
 /**
@@ -168,7 +323,7 @@ function aggregateOverlappingPoints(records) {
     return Array.from(groupedByPosition.values()).map((group) => ({
         longitude: group.longitude,
         latitude: group.latitude,
-        stress_level: group.totalStress / group.count
+        stress_level: normalizeStressLevel(group.totalStress / group.count)
     }));
 }
 
@@ -395,9 +550,7 @@ function initDateRangeControls() {
     endInput.addEventListener('change', applyDateFilter);
 
     const applyPresetRange = (startDate, endDate) => {
-        const timestamps = stressData
-            .map((record) => record.timestamp)
-            .filter((timestamp) => timestamp !== null);
+        const timestamps = getAvailableTimestamps();
 
         if (timestamps.length > 0) {
             const minTimestamp = Math.min(...timestamps);
@@ -417,10 +570,7 @@ function initDateRangeControls() {
 
     if (thisWeekButton) {
         thisWeekButton.addEventListener('click', () => {
-            const now = new Date();
-            const weekStart = getStartOfWeek(now);
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekStart.getDate() + 6);
+            const { weekStart, weekEnd } = getCurrentWeekBounds();
             applyPresetRange(weekStart, weekEnd);
         });
     }
@@ -461,19 +611,14 @@ function updateDateFilterBounds() {
     if (!startInput || !endInput) return;
 
     const setCurrentWeekRange = () => {
-        const now = new Date();
-        const weekStart = getStartOfWeek(now);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
+        const { weekStart, weekEnd } = getCurrentWeekBounds();
         startInput.value = toLocalDateInputValue(weekStart);
         endInput.value = toLocalDateInputValue(weekEnd);
         dateRange.start = parseDateStart(startInput.value);
         dateRange.end = parseDateEnd(endInput.value);
     };
 
-    const timestamps = stressData
-        .map((record) => record.timestamp)
-        .filter((timestamp) => timestamp !== null);
+    const timestamps = getAvailableTimestamps();
 
     if (timestamps.length === 0) {
         startInput.min = '';
@@ -499,10 +644,7 @@ function updateDateFilterBounds() {
     endInput.max = maxDate;
 
     if (!hasInitializedDateRange) {
-        const now = new Date();
-        const weekStart = getStartOfWeek(now);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
+        const { weekStart, weekEnd } = getCurrentWeekBounds();
 
         const clampedStart = clampDateToDataBounds(weekStart, minTimestamp, maxTimestamp);
         const clampedEnd = clampDateToDataBounds(weekEnd, minTimestamp, maxTimestamp);
@@ -521,33 +663,129 @@ function updateDateFilterBounds() {
 function initStressRangeControls() {
     const minSlider = document.getElementById('stress-min');
     const maxSlider = document.getElementById('stress-max');
+    const minInput = document.getElementById('stress-min-input');
+    const maxInput = document.getElementById('stress-max-input');
 
-    if (!minSlider || !maxSlider) return;
+    if (!minSlider || !maxSlider || !minInput || !maxInput) return;
 
-    minSlider.addEventListener('input', () => {
-        stressRange.min = Number(minSlider.value);
+    const baseStep = 0.01;
+
+    const getModifierDelta = (event) => {
+        if (event?.ctrlKey) return 0.5;
+        if (event?.shiftKey) return 0.1;
+        return baseStep;
+    };
+
+    const handleMinimumChange = (value) => {
+        stressRange.min = clampStressLevel(value);
 
         if (stressRange.min > stressRange.max) {
             stressRange.max = stressRange.min;
-            maxSlider.value = String(stressRange.max);
         }
 
+        syncStressRangeControls();
         updateRangeSelectionBar();
         applyFiltersAndRender();
-    });
+    };
 
-    maxSlider.addEventListener('input', () => {
-        stressRange.max = Number(maxSlider.value);
+    const handleMaximumChange = (value) => {
+        stressRange.max = clampStressLevel(value);
 
         if (stressRange.max < stressRange.min) {
             stressRange.min = stressRange.max;
-            minSlider.value = String(stressRange.min);
         }
 
+        syncStressRangeControls();
         updateRangeSelectionBar();
         applyFiltersAndRender();
+    };
+
+    const handleModifiedPointerStep = (event, currentValue, applyValue) => {
+        const delta = getModifierDelta(event);
+        if (delta === baseStep) return;
+
+        const target = event.currentTarget;
+        if (!target) return;
+
+        // For number inputs, only hijack clicks on the spinner affordance.
+        if (target.type === 'number') {
+            const rect = target.getBoundingClientRect();
+            const spinnerWidth = Math.min(24, rect.width * 0.35);
+            const clickedSpinner = event.clientX >= (rect.right - spinnerWidth);
+            if (!clickedSpinner) return;
+
+            event.preventDefault();
+            const direction = event.clientY < (rect.top + rect.height / 2) ? 1 : -1;
+            applyValue(currentValue() + (direction * delta));
+            return;
+        }
+
+        // For range sliders, interpret click side relative to current thumb position.
+        if (target.type === 'range') {
+            const rect = target.getBoundingClientRect();
+            const clickRatio = (event.clientX - rect.left) / Math.max(rect.width, 1);
+            const currentRatio = (currentValue() - 1) / 4;
+            const direction = clickRatio >= currentRatio ? 1 : -1;
+            event.preventDefault();
+            applyValue(currentValue() + (direction * delta));
+        }
+    };
+
+    const handleModifiedArrowStep = (event, currentValue, applyValue) => {
+        if (!['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft'].includes(event.key)) return;
+
+        const delta = getModifierDelta(event);
+        if (delta === baseStep) return;
+
+        event.preventDefault();
+        const direction = (event.key === 'ArrowUp' || event.key === 'ArrowRight') ? 1 : -1;
+        applyValue(currentValue() + (direction * delta));
+    };
+
+    minSlider.addEventListener('input', () => {
+        handleMinimumChange(minSlider.value);
     });
 
+    maxSlider.addEventListener('input', () => {
+        handleMaximumChange(maxSlider.value);
+    });
+
+    minInput.addEventListener('input', () => {
+        handleMinimumChange(readStressInputValue(minInput, stressRange.min));
+    });
+
+    maxInput.addEventListener('input', () => {
+        handleMaximumChange(readStressInputValue(maxInput, stressRange.max));
+    });
+
+    minSlider.addEventListener('pointerdown', (event) => {
+        handleModifiedPointerStep(event, () => stressRange.min, handleMinimumChange);
+    });
+    maxSlider.addEventListener('pointerdown', (event) => {
+        handleModifiedPointerStep(event, () => stressRange.max, handleMaximumChange);
+    });
+
+    minInput.addEventListener('pointerdown', (event) => {
+        handleModifiedPointerStep(event, () => stressRange.min, handleMinimumChange);
+    });
+    maxInput.addEventListener('pointerdown', (event) => {
+        handleModifiedPointerStep(event, () => stressRange.max, handleMaximumChange);
+    });
+
+    minSlider.addEventListener('keydown', (event) => {
+        handleModifiedArrowStep(event, () => stressRange.min, handleMinimumChange);
+    });
+    maxSlider.addEventListener('keydown', (event) => {
+        handleModifiedArrowStep(event, () => stressRange.max, handleMaximumChange);
+    });
+    minInput.addEventListener('keydown', (event) => {
+        handleModifiedArrowStep(event, () => stressRange.min, handleMinimumChange);
+    });
+    maxInput.addEventListener('keydown', (event) => {
+        handleModifiedArrowStep(event, () => stressRange.max, handleMaximumChange);
+    });
+
+    syncStressRangeControls();
     updateRangeSelectionBar();
 }
 
@@ -585,10 +823,5 @@ function startPolling() {
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Starting MRU Stress Heatmap');
-    initSidebarToggle();
-    initStressRangeControls();
-    initDateRangeControls();
-    initCategoryFilters();
-    initMap();
-    startPolling();
+    initLoginOverlay();
 });

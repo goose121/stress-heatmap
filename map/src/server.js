@@ -73,6 +73,10 @@ const DEPARTMENT_TO_FACULTY = {
 
 const VALID_DEPARTMENTS = new Set(Object.keys(DEPARTMENT_TO_FACULTY));
 
+function normalizeStressLevel(value) {
+    return Number(Number(value).toFixed(2));
+}
+
 /**
  * toSqliteUtcDatetime - Converts Date to SQLite UTC datetime format.
  */
@@ -154,7 +158,7 @@ app.get('/api/stress-data', (req, res) => {
 
 /**
  * POST /api/stress-data - Add or update stress report
- * Points are considered the same for the same IP
+ * One submission per user per week in display; same-week submissions override
  */
 app.post('/api/stress-data', (req, res) => {
     const {
@@ -178,7 +182,7 @@ app.post('/api/stress-data', (req, res) => {
     }
     
     if (parsedStress < 1 || parsedStress > 5) {
-        return res.status(400).json({ error: 'Stress level must be between 1 and 5' });
+        return res.status(400).json({ error: 'Stress level must be between 1.00 and 5.00' });
     }
 
     if (!isPointInPolygon(parsedLongitude, parsedLatitude, MRU_CAMPUS_POLYGON)) {
@@ -206,7 +210,7 @@ app.post('/api/stress-data', (req, res) => {
                 department = excluded.department
         `;
         
-        db.prepare(query).run(ip_address, parsedStress, parsedLongitude, parsedLatitude, recordDatetime, department);
+        db.prepare(query).run(ip_address, normalizeStressLevel(parsedStress), parsedLongitude, parsedLatitude, recordDatetime, department);
         console.log('Updated stress report record');
         res.json({ success: true });
     } catch (err) {
